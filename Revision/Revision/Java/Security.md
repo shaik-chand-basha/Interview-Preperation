@@ -1,0 +1,473 @@
+<div class="cm bd fw fx fy fz">
+    <div>
+        <h1 id="3228"
+            class="pw-post-title gp gq gr bb gs gt gu gv gw gx gy gz ha hb hc hd he hf hg hh hi hj hk hl hm hn ho hp hq hr bg"
+            data-testid="storyTitle" data-selectable-paragraph="">Spring Security Interview Q &amp;A</h1>
+        
+    </div>
+   
+    <h2 id="f2e5" class="mo mp gr bb mq mr ms mt mu mv mw mx my mz na nb nc nd ne nf ng nh ni nj nk nl bg"
+        data-selectable-paragraph="">1. What is Spring Security?</h2>
+    <p id="350c"
+        class="pw-post-body-paragraph nm nn gr no b np nq nr ns nt nu nv nw nx ny nz oa ob oc od oe of og oh oi oj gk bg"
+        data-selectable-paragraph=""><strong class="no gs">Answer:</strong> Spring Security is a powerful and
+        customizable framework for securing Java applications. It helps protect applications by providing <strong
+            class="no gs">authentication (verifying who you are)</strong> and <strong class="no gs">authorization
+            (checking what you are allowed to do).</strong></p>
+    <h2 id="bed5" class="mo mp gr bb mq mr ms mt mu mv mw mx my mz na nb nc nd ne nf ng nh ni nj nk nl bg"
+        data-selectable-paragraph="">2. What are the main components of Spring Security?</h2>
+    <p id="5dbd"
+        class="pw-post-body-paragraph nm nn gr no b np nq nr ns nt nu nv nw nx ny nz oa ob oc od oe of og oh oi oj gk bg"
+        data-selectable-paragraph=""><strong class="no gs">Answer: </strong>The main components are:</p>
+    <ul class="">
+        <li id="b563" class="nm nn gr no b np ok nr ns nt ol nv nw nx om nz oa ob on od oe of oo oh oi oj op oq or bg"
+            data-selectable-paragraph=""><strong class="no gs">Authentication:</strong> Verifies the identity of a user.
+        </li>
+        <li id="94bf" class="nm nn gr no b np os nr ns nt ot nv nw nx ou nz oa ob ov od oe of ow oh oi oj op oq or bg"
+            data-selectable-paragraph=""><strong class="no gs">Authorization:</strong> Determines what a user can do.
+        </li>
+        <li id="19b9" class="nm nn gr no b np os nr ns nt ot nv nw nx ou nz oa ob ov od oe of ow oh oi oj op oq or bg"
+            data-selectable-paragraph=""><strong class="no gs">Filters: </strong>Intercepts requests to apply security
+            checks.</li>
+        <li id="415e" class="nm nn gr no b np os nr ns nt ot nv nw nx ou nz oa ob ov od oe of ow oh oi oj op oq or bg"
+            data-selectable-paragraph=""><strong class="no gs">Security Context: </strong>Stores information about the
+            current user.</li>
+    </ul>
+    <h2 id="cbeb" class="mo mp gr bb mq mr ms mt mu mv mw mx my mz na nb nc nd ne nf ng nh ni nj nk nl bg"
+        data-selectable-paragraph="">3. How do you configure security in a Spring Boot application?</h2>
+    <p id="ba9f"
+        class="pw-post-body-paragraph nm nn gr no b np nq nr ns nt nu nv nw nx ny nz oa ob oc od oe of og oh oi oj gk bg"
+        data-selectable-paragraph=""><strong class="no gs">Answer:</strong> In Spring Boot, you can configure security
+        using a class with the <code class="db ox oy oz pa b"><strong class="no gs">@Configuration</strong></code>
+        annotation and defining a <code
+            class="db ox oy oz pa b"><strong class="no gs">SecurityFilterChain</strong></code> bean. This replaces the
+        older way of extending <code
+            class="db ox oy oz pa b"><strong class="no gs">WebSecurityConfigurerAdapter</strong></code>.</p>
+    <pre
+        class="pb pc pd pe pf pg pa ph bl pi ax bg"><span id="fef5" class="pj mp gr pa b bc pk pl e pm pn" data-selectable-paragraph=""><span class="hljs-keyword">import</span> org.springframework.context.<span class="hljs-keyword">annotation</span>.Bean;<br><span class="hljs-keyword">import</span> org.springframework.context.<span class="hljs-keyword">annotation</span>.Configuration;<br><span class="hljs-keyword">import</span> org.springframework.security.config.<span class="hljs-keyword">annotation</span>.web.builders.HttpSecurity;<br><span class="hljs-keyword">import</span> org.springframework.security.web.SecurityFilterChain;<br><br><span class="hljs-meta">@Configuration</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title.class">SecurityConfig</span> {<br><br>    <span class="hljs-meta">@Bean</span><br>    <span class="hljs-keyword">public</span> SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {<br>        http<br>            .authorizeHttpRequests(authorizeRequests -&gt;<br>                authorizeRequests<br>                    .requestMatchers(<span class="hljs-string">"/public/**"</span>).permitAll()<br>                    .anyRequest().authenticated()<br>            )<br>            .formLogin(formLogin -&gt;<br>                formLogin<br>                    .loginPage(<span class="hljs-string">"/login"</span>)<br>                    .permitAll()<br>            )<br>            .logout(logout -&gt;<br>                logout<br>                    .permitAll()<br>            );<br>        <span class="hljs-keyword">return</span> http.build();<br>    }<br>}</span></pre>
+    <h2 id="d724" class="mo mp gr bb mq mr ms mt mu mv mw mx my mz na nb nc nd ne nf ng nh ni nj nk nl bg"
+        data-selectable-paragraph="">4. What is a <code class="db ox oy oz pa b">UserDetailsService</code>?</h2>
+    <p id="ca9d"
+        class="pw-post-body-paragraph nm nn gr no b np nq nr ns nt nu nv nw nx ny nz oa ob oc od oe of og oh oi oj gk bg"
+        data-selectable-paragraph=""><strong class="no gs">Answer:</strong> <code
+            class="db ox oy oz pa b"><strong class="no gs">UserDetailsService</strong></code> is an interface used to
+        retrieve user-related data. It has a single method, <code
+            class="db ox oy oz pa b"><strong class="no gs">loadUserByUsername(String username)</strong></code>, which is
+        used to find user details by their username.</p>
+    <h2 id="fc2d" class="mo mp gr bb mq mr ms mt mu mv mw mx my mz na nb nc nd ne nf ng nh ni nj nk nl bg"
+        data-selectable-paragraph="">5. How do you create an in-memory user for testing?</h2>
+    <p id="0d82"
+        class="pw-post-body-paragraph nm nn gr no b np nq nr ns nt nu nv nw nx ny nz oa ob oc od oe of og oh oi oj gk bg"
+        data-selectable-paragraph="">Answer: You can create an in-memory user by defining a <code
+            class="db ox oy oz pa b"><strong class="no gs">UserDetailsService</strong></code> bean:</p>
+    <pre
+        class="pb pc pd pe pf pg pa ph bl pi ax bg"><span id="c684" class="pj mp gr pa b bc pk pl e pm pn" data-selectable-paragraph=""><span class="hljs-keyword">import</span> org.springframework.context.<span class="hljs-keyword">annotation</span>.Bean;<br><span class="hljs-keyword">import</span> org.springframework.context.<span class="hljs-keyword">annotation</span>.Configuration;<br><span class="hljs-keyword">import</span> org.springframework.security.core.userdetails.User;<br><span class="hljs-keyword">import</span> org.springframework.security.core.userdetails.UserDetailsService;<br><span class="hljs-keyword">import</span> org.springframework.security.provisioning.InMemoryUserDetailsManager;<br><br><span class="hljs-meta">@Configuration</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title.class">UserConfig</span> {<br><br>    <span class="hljs-meta">@Bean</span><br>    <span class="hljs-keyword">public</span> UserDetailsService userDetailsService() {<br>        <span class="hljs-keyword">var</span> user = User.withUsername(<span class="hljs-string">"user"</span>)<br>            .password(<span class="hljs-string">"{noop}password"</span>) <span class="hljs-comment">// {noop} means no password encoder</span><br>            .roles(<span class="hljs-string">"USER"</span>)<br>            .build();<br>        <span class="hljs-keyword">return</span> new InMemoryUserDetailsManager(user);<br>    }<br>}</span></pre>
+    <h2 id="6ba3" class="mo mp gr bb mq mr ms mt mu mv mw mx my mz na nb nc nd ne nf ng nh ni nj nk nl bg"
+        data-selectable-paragraph="">6. What is a <code class="db ox oy oz pa b">PasswordEncoder</code> and why is it
+        important?</h2>
+    <p id="a2df"
+        class="pw-post-body-paragraph nm nn gr no b np nq nr ns nt nu nv nw nx ny nz oa ob oc od oe of og oh oi oj gk bg"
+        data-selectable-paragraph=""><strong class="no gs">Answer: </strong><code
+            class="db ox oy oz pa b"><strong class="no gs">PasswordEncoder</strong></code> is an interface for encoding
+        passwords. It is important because it ensures that passwords are stored securely in an encoded (hashed) form,
+        rather than as plain text.</p>
+    <pre
+        class="pb pc pd pe pf pg pa ph bl pi ax bg"><span id="ca25" class="pj mp gr pa b bc pk pl e pm pn" data-selectable-paragraph=""><span class="hljs-keyword">import</span> org.springframework.context.<span class="hljs-keyword">annotation</span>.Bean;<br><span class="hljs-keyword">import</span> org.springframework.context.<span class="hljs-keyword">annotation</span>.Configuration;<br><span class="hljs-keyword">import</span> org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;<br><span class="hljs-keyword">import</span> org.springframework.security.crypto.password.PasswordEncoder;<br><br><span class="hljs-meta">@Configuration</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title.class">PasswordConfig</span> {<br><br>    <span class="hljs-meta">@Bean</span><br>    <span class="hljs-keyword">public</span> PasswordEncoder passwordEncoder() {<br>        <span class="hljs-keyword">return</span> new BCryptPasswordEncoder();<br>    }<br>}</span></pre>
+    <h2 id="76f5" class="mo mp gr bb mq mr ms mt mu mv mw mx my mz na nb nc nd ne nf ng nh ni nj nk nl bg"
+        data-selectable-paragraph="">7. How do you secure specific URLs in Spring Security?</h2>
+    <p id="b385"
+        class="pw-post-body-paragraph nm nn gr no b np nq nr ns nt nu nv nw nx ny nz oa ob oc od oe of og oh oi oj gk bg"
+        data-selectable-paragraph=""><strong class="no gs">Answer:</strong> You can secure specific URLs by using the
+        <code class="db ox oy oz pa b"><strong class="no gs">authorizeHttpRequests</strong></code> method in your <code
+            class="db ox oy oz pa b"><strong class="no gs">SecurityFilterChain</strong></code> configuration:</p>
+    <pre
+        class="pb pc pd pe pf pg pa ph bl pi ax bg"><span id="f1de" class="pj mp gr pa b bc pk pl e pm pn" data-selectable-paragraph=""><span class="hljs-selector-tag">http</span><br>    <span class="hljs-selector-class">.authorizeHttpRequests</span>(authorizeRequests -&gt;<br>        authorizeRequests<br>            .<span class="hljs-built_in">requestMatchers</span>(<span class="hljs-string">"/admin/**"</span>).<span class="hljs-built_in">hasRole</span>(<span class="hljs-string">"ADMIN"</span>)<br>            .<span class="hljs-built_in">requestMatchers</span>(<span class="hljs-string">"/user/**"</span>).<span class="hljs-built_in">hasRole</span>(<span class="hljs-string">"USER"</span>)<br>            .<span class="hljs-built_in">anyRequest</span>().<span class="hljs-built_in">authenticated</span>()<br>    );</span></pre>
+    <h2 id="bbfa" class="mo mp gr bb mq mr ms mt mu mv mw mx my mz na nb nc nd ne nf ng nh ni nj nk nl bg"
+        data-selectable-paragraph="">8. What is CSRF protection and why is it important?</h2>
+    <p id="9f11"
+        class="pw-post-body-paragraph nm nn gr no b np nq nr ns nt nu nv nw nx ny nz oa ob oc od oe of og oh oi oj gk bg"
+        data-selectable-paragraph=""><strong class="no gs">Answer: CSRF (Cross-Site Request Forgery) </strong>protection
+        prevents malicious websites from making requests on behalf of authenticated users. It’s important because it
+        protects against unauthorized actions performed by attackers.</p>
+    <p id="64a5"
+        class="pw-post-body-paragraph nm nn gr no b np ok nr ns nt ol nv nw nx om nz oa ob on od oe of oo oh oi oj gk bg"
+        data-selectable-paragraph="">Spring Security enables CSRF protection by default. To customize or disable it, you
+        can use:</p>
+    <pre
+        class="pb pc pd pe pf pg pa ph bl pi ax bg"><span id="ac3c" class="pj mp gr pa b bc pk pl e pm pn" data-selectable-paragraph="">http<span class="hljs-selector-class">.csrf</span>()<span class="hljs-selector-class">.disable</span>(); <span class="hljs-comment">// This disables CSRF protection, which is not recommended for most cases.</span></span></pre>
+    <h2 id="69e7" class="mo mp gr bb mq mr ms mt mu mv mw mx my mz na nb nc nd ne nf ng nh ni nj nk nl bg"
+        data-selectable-paragraph="">9. How do you handle logout in Spring Security?</h2>
+    <p id="c2e9"
+        class="pw-post-body-paragraph nm nn gr no b np nq nr ns nt nu nv nw nx ny nz oa ob oc od oe of og oh oi oj gk bg"
+        data-selectable-paragraph=""><strong class="no gs">Answer: </strong>You can configure logout in your <code
+            class="db ox oy oz pa b"><strong class="no gs">SecurityFilterChain</strong></code> configuration:</p>
+    <pre
+        class="pb pc pd pe pf pg pa ph bl pi ax bg"><span id="5aa2" class="pj mp gr pa b bc pk pl e pm pn" data-selectable-paragraph="">http<br>    .<span class="hljs-built_in">logout</span>(<span class="hljs-built_in">logout</span> -&gt;<br>        <span class="hljs-built_in">logout</span><br>            .logoutUrl(<span class="hljs-string">"/logout"</span>)<br>            .logoutSuccessUrl(<span class="hljs-string">"/login?logout"</span>)<br>            .permitAll()<br>    );</span></pre>
+    <h2 id="ec33" class="mo mp gr bb mq mr ms mt mu mv mw mx my mz na nb nc nd ne nf ng nh ni nj nk nl bg"
+        data-selectable-paragraph="">0. What is the <code class="db ox oy oz pa b">SecurityContextHolder</code>?</h2>
+    <p id="ea51"
+        class="pw-post-body-paragraph nm nn gr no b np nq nr ns nt nu nv nw nx ny nz oa ob oc od oe of og oh oi oj gk bg"
+        data-selectable-paragraph=""><strong class="no gs">Answer: </strong><code
+            class="db ox oy oz pa b"><strong class="no gs">SecurityContextHolder</strong></code> is a class that holds
+        the <code class="db ox oy oz pa b"><strong class="no gs">SecurityContext</strong></code> containing the security
+        information of the current user. It provides methods to get and set the authentication details.</p>
+    <h2 id="938b" class="mo mp gr bb mq mr ms mt mu mv mw mx my mz na nb nc nd ne nf ng nh ni nj nk nl bg"
+        data-selectable-paragraph="">11. What are the default login and logout URLs in Spring Security?</h2>
+    <p id="8b38"
+        class="pw-post-body-paragraph nm nn gr no b np nq nr ns nt nu nv nw nx ny nz oa ob oc od oe of og oh oi oj gk bg"
+        data-selectable-paragraph=""><strong class="no gs">Answer: </strong>The default login URL is <code
+            class="db ox oy oz pa b"><strong class="no gs">/login</strong></code> and the default logout URL is <code
+            class="db ox oy oz pa b"><strong class="no gs">/logout</strong></code>.</p>
+    <h2 id="609a" class="mo mp gr bb mq mr ms mt mu mv mw mx my mz na nb nc nd ne nf ng nh ni nj nk nl bg"
+        data-selectable-paragraph="">12. How do you enable HTTPS (SSL/TLS) in a Spring Boot application?</h2>
+    <p id="41dd"
+        class="pw-post-body-paragraph nm nn gr no b np nq nr ns nt nu nv nw nx ny nz oa ob oc od oe of og oh oi oj gk bg"
+        data-selectable-paragraph=""><strong class="no gs">Answer: </strong>To enable HTTPS, you need to configure SSL
+        in your <code class="db ox oy oz pa b"><strong class="no gs">application.properties</strong></code> or <code
+            class="db ox oy oz pa b"><strong class="no gs">application.yml</strong></code> file and provide a keystore
+        with your SSL certificate:</p>
+    <pre
+        class="pb pc pd pe pf pg pa ph bl pi ax bg"><span id="62a4" class="pj mp gr pa b bc pk pl e pm pn" data-selectable-paragraph=""><span class="hljs-attr">server.port</span>=<span class="hljs-number">8443</span><br><span class="hljs-attr">server.ssl.key-store</span>=classpath:keystore.p12<br><span class="hljs-attr">server.ssl.key-store-password</span>=yourpassword<br><span class="hljs-attr">server.ssl.key-store-type</span>=PKCS12<br><span class="hljs-attr">server.ssl.key-alias</span>=selfsigned</span></pre>
+    <h2 id="4dbc" class="mo mp gr bb mq mr ms mt mu mv mw mx my mz na nb nc nd ne nf ng nh ni nj nk nl bg"
+        data-selectable-paragraph="">13. What is method-level security and how do you enable it?</h2>
+    <p id="ce42"
+        class="pw-post-body-paragraph nm nn gr no b np nq nr ns nt nu nv nw nx ny nz oa ob oc od oe of og oh oi oj gk bg"
+        data-selectable-paragraph=""><strong class="no gs">Answer:</strong> Method-level security allows you to secure
+        individual methods in your service layer. You can enable it with the <code
+            class="db ox oy oz pa b"><strong class="no gs">@EnableMethodSecurity</strong></code> annotation and use
+        annotations like <code class="db ox oy oz pa b"><strong class="no gs">@PreAuthorize</strong></code> on methods.
+    </p>
+    <pre
+        class="pb pc pd pe pf pg pa ph bl pi ax bg"><span id="03a8" class="pj mp gr pa b bc pk pl e pm pn" data-selectable-paragraph=""><span class="hljs-keyword">import</span> org.springframework.security.access.prepost.PreAuthorize;<br><br><span class="hljs-meta">@Service</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title.class">MyService</span> {<br><br>    <span class="hljs-meta">@PreAuthorize("hasRole('ADMIN')")</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-keyword">void</span> <span class="hljs-title.function">secureMethod</span><span class="hljs-params">()</span> {<br>        <span class="hljs-comment">// Method implementation</span><br>    }<br>}</span></pre>
+    <h2 id="8195" class="mo mp gr bb mq mr ms mt mu mv mw mx my mz na nb nc nd ne nf ng nh ni nj nk nl bg"
+        data-selectable-paragraph="">14. What is OAuth2 and how does it work with Spring Security?</h2>
+    <p id="ca29"
+        class="pw-post-body-paragraph nm nn gr no b np nq nr ns nt nu nv nw nx ny nz oa ob oc od oe of og oh oi oj gk bg"
+        data-selectable-paragraph=""><strong class="no gs">Answer:</strong> OAuth2 is an authorization framework that
+        allows third-party services to exchange limited access tokens on behalf of users. Spring Security provides
+        support for OAuth2 to help you integrate with OAuth2 providers like Google, Facebook, etc.</p>
+    <h2 id="e045" class="mo mp gr bb mq mr ms mt mu mv mw mx my mz na nb nc nd ne nf ng nh ni nj nk nl bg"
+        data-selectable-paragraph="">15. How do you configure OAuth2 login in Spring Security?</h2>
+    <p id="c4df"
+        class="pw-post-body-paragraph nm nn gr no b np nq nr ns nt nu nv nw nx ny nz oa ob oc od oe of og oh oi oj gk bg"
+        data-selectable-paragraph=""><strong class="no gs">Answer:</strong> You can configure OAuth2 login using the
+        <code class="db ox oy oz pa b"><strong class="no gs">oauth2Login</strong></code> method in your <code
+            class="db ox oy oz pa b"><strong class="no gs">SecurityFilterChain</strong></code> configuration:</p>
+    <pre
+        class="pb pc pd pe pf pg pa ph bl pi ax bg"><span id="7141" class="pj mp gr pa b bc pk pl e pm pn" data-selectable-paragraph=""><span class="hljs-selector-tag">http</span><br>    <span class="hljs-selector-class">.oauth2Login</span>(oauth2Login -&gt;<br>        oauth2Login<br>            .<span class="hljs-built_in">loginPage</span>(<span class="hljs-string">"/oauth2/authorization/login-client"</span>)<br>    );</span></pre>
+    <h2 id="cec2" class="mo mp gr bb mq mr ms mt mu mv mw mx my mz na nb nc nd ne nf ng nh ni nj nk nl bg"
+        data-selectable-paragraph="">16. What is a Security Filter Chain?</h2>
+    <p id="3d5a"
+        class="pw-post-body-paragraph nm nn gr no b np nq nr ns nt nu nv nw nx ny nz oa ob oc od oe of og oh oi oj gk bg"
+        data-selectable-paragraph=""><strong class="no gs">Answer:</strong> A Security Filter Chain is a series of
+        filters that apply security to incoming requests in a specific order. In Spring Security, filters are used to
+        manage authentication, authorization, CSRF protection, session management, and more. The <code
+            class="db ox oy oz pa b">S<strong class="no gs">ecurityFilterChain</strong></code> bean in Spring Boot
+        replaces the <code class="db ox oy oz pa b"><strong class="no gs">WebSecurityConfigurerAdapter</strong></code>
+        for defining these security rules.</p>
+    <h2 id="1ece" class="mo mp gr bb mq mr ms mt mu mv mw mx my mz na nb nc nd ne nf ng nh ni nj nk nl bg"
+        data-selectable-paragraph="">17. How do you secure a REST API in Spring Boot?</h2>
+    <p id="15cd"
+        class="pw-post-body-paragraph nm nn gr no b np nq nr ns nt nu nv nw nx ny nz oa ob oc od oe of og oh oi oj gk bg"
+        data-selectable-paragraph=""><strong class="no gs">Answer:</strong> Securing a REST API involves configuring
+        authentication and authorization for API endpoints. Here’s a basic example:</p>
+    <pre
+        class="pb pc pd pe pf pg pa ph bl pi ax bg"><span id="feed" class="pj mp gr pa b bc pk pl e pm pn" data-selectable-paragraph=""><span class="hljs-keyword">import</span> org.springframework.context.<span class="hljs-keyword">annotation</span>.Bean;<br><span class="hljs-keyword">import</span> org.springframework.context.<span class="hljs-keyword">annotation</span>.Configuration;<br><span class="hljs-keyword">import</span> org.springframework.security.config.<span class="hljs-keyword">annotation</span>.web.builders.HttpSecurity;<br><span class="hljs-keyword">import</span> org.springframework.security.web.SecurityFilterChain;<br><br><span class="hljs-meta">@Configuration</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title.class">ApiSecurityConfig</span> {<br><br>    <span class="hljs-meta">@Bean</span><br>    <span class="hljs-keyword">public</span> SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {<br>        http<br>            .csrf().disable()<br>            .authorizeHttpRequests(authorizeRequests -&gt;<br>                authorizeRequests<br>                    .requestMatchers(<span class="hljs-string">"/api/public/**"</span>).permitAll()<br>                    .requestMatchers(<span class="hljs-string">"/api/admin/**"</span>).hasRole(<span class="hljs-string">"ADMIN"</span>)<br>                    .anyRequest().authenticated()<br>            )<br>            .httpBasic();<br>        <span class="hljs-keyword">return</span> http.build();<br>    }<br>}</span></pre>
+    <h2 id="3a15" class="mo mp gr bb mq mr ms mt mu mv mw mx my mz na nb nc nd ne nf ng nh ni nj nk nl bg"
+        data-selectable-paragraph="">18. How do you customize the login page in Spring Security?</h2>
+    <p id="98fd"
+        class="pw-post-body-paragraph nm nn gr no b np nq nr ns nt nu nv nw nx ny nz oa ob oc od oe of og oh oi oj gk bg"
+        data-selectable-paragraph=""><strong class="no gs">Answer:</strong> You can customize the login page by
+        specifying a custom login page URL in your security configuration:</p>
+    <pre
+        class="pb pc pd pe pf pg pa ph bl pi ax bg"><span id="fe48" class="pj mp gr pa b bc pk pl e pm pn" data-selectable-paragraph=""><span class="hljs-selector-tag">http</span><br>    <span class="hljs-selector-class">.formLogin</span>(formLogin -&gt;<br>        formLogin<br>            .<span class="hljs-built_in">loginPage</span>(<span class="hljs-string">"/custom-login"</span>)<br>            .<span class="hljs-built_in">permitAll</span>()<br>    );</span></pre>
+    <p id="37ed"
+        class="pw-post-body-paragraph nm nn gr no b np ok nr ns nt ol nv nw nx om nz oa ob on od oe of oo oh oi oj gk bg"
+        data-selectable-paragraph="">You also need to create a controller and a view for your custom login page.</p>
+    <h2 id="76fd" class="mo mp gr bb mq mr ms mt mu mv mw mx my mz na nb nc nd ne nf ng nh ni nj nk nl bg"
+        data-selectable-paragraph="">19. What is a <code class="db ox oy oz pa b">UserDetails</code> and how is it used?
+    </h2>
+    <p id="86d7"
+        class="pw-post-body-paragraph nm nn gr no b np nq nr ns nt nu nv nw nx ny nz oa ob oc od oe of og oh oi oj gk bg"
+        data-selectable-paragraph=""><strong class="no gs">Answer: </strong><code
+            class="db ox oy oz pa b"><strong class="no gs">UserDetails</strong></code> is an interface that provides
+        core user information. Implementations are used by Spring Security to store authentication and authorization
+        details:</p>
+    <pre
+        class="pb pc pd pe pf pg pa ph bl pi ax bg"><span id="b69c" class="pj mp gr pa b bc pk pl e pm pn" data-selectable-paragraph=""><span class="hljs-keyword">import</span> org.<span class="hljs-property">springframework</span>.<span class="hljs-property">security</span>.<span class="hljs-property">core</span>.<span class="hljs-property">GrantedAuthority</span>;<br><span class="hljs-keyword">import</span> org.<span class="hljs-property">springframework</span>.<span class="hljs-property">security</span>.<span class="hljs-property">core</span>.<span class="hljs-property">userdetails</span>.<span class="hljs-property">UserDetails</span>;<br><br><span class="hljs-keyword">import</span> java.<span class="hljs-property">util</span>.<span class="hljs-property">Collection</span>;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title.class">CustomUserDetails</span> <span class="hljs-keyword">implements</span> <span class="hljs-title.class">UserDetails</span> {<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-title.class">String</span> username;<br>    <span class="hljs-keyword">private</span> <span class="hljs-title.class">String</span> password;<br>    <span class="hljs-keyword">private</span> <span class="hljs-built_in">boolean</span> enabled;<br>    <span class="hljs-keyword">private</span> <span class="hljs-title.class">Collection</span>&lt;? <span class="hljs-keyword">extends</span> <span class="hljs-title.class">GrantedAuthority</span>&gt; authorities;<br><br>    <span class="hljs-comment">// Constructor, getters and setters</span><br><br>    <span class="hljs-meta">@Override</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-title.class">Collection</span>&lt;? <span class="hljs-keyword">extends</span> <span class="hljs-title.class">GrantedAuthority</span>&gt; <span class="hljs-title.function">getAuthorities</span>() {<br>        <span class="hljs-keyword">return</span> authorities;<br>    }<br><br>    <span class="hljs-meta">@Override</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-title.class">String</span> <span class="hljs-title.function">getPassword</span>() {<br>        <span class="hljs-keyword">return</span> password;<br>    }<br><br>    <span class="hljs-meta">@Override</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-title.class">String</span> <span class="hljs-title.function">getUsername</span>() {<br>        <span class="hljs-keyword">return</span> username;<br>    }<br><br>    <span class="hljs-meta">@Override</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-built_in">boolean</span> <span class="hljs-title.function">isAccountNonExpired</span>() {<br>        <span class="hljs-keyword">return</span> <span class="hljs-literal">true</span>;<br>    }<br><br>    <span class="hljs-meta">@Override</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-built_in">boolean</span> <span class="hljs-title.function">isAccountNonLocked</span>() {<br>        <span class="hljs-keyword">return</span> <span class="hljs-literal">true</span>;<br>    }<br><br>    <span class="hljs-meta">@Override</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-built_in">boolean</span> <span class="hljs-title.function">isCredentialsNonExpired</span>() {<br>        <span class="hljs-keyword">return</span> <span class="hljs-literal">true</span>;<br>    }<br><br>    <span class="hljs-meta">@Override</span><br>    <span class="hljs-keyword">public</span> <span class="hljs-built_in">boolean</span> <span class="hljs-title.function">isEnabled</span>() {<br>        <span class="hljs-keyword">return</span> enabled;<br>    }<br>}</span></pre>
+    <h2 id="245d" class="mo mp gr bb mq mr ms mt mu mv mw mx my mz na nb nc nd ne nf ng nh ni nj nk nl bg"
+        data-selectable-paragraph="">20. How do you integrate Spring Security with JWT?</h2>
+    <p id="6ba1"
+        class="pw-post-body-paragraph nm nn gr no b np nq nr ns nt nu nv nw nx ny nz oa ob oc od oe of og oh oi oj gk bg"
+        data-selectable-paragraph=""><strong class="no gs">Answer:</strong> To integrate JWT (JSON Web Token) with
+        Spring Security, you generally follow these steps:</p>
+    <ol class="">
+        <li id="c68d" class="nm nn gr no b np ok nr ns nt ol nv nw nx om nz oa ob on od oe of oo oh oi oj po oq or bg"
+            data-selectable-paragraph=""><strong class="no gs">Add Dependencies:</strong> Add necessary dependencies in
+            <code class="db ox oy oz pa b">pom.xml</code> or <code class="db ox oy oz pa b">build.gradle</code>.</li>
+        <li id="d42c" class="nm nn gr no b np os nr ns nt ot nv nw nx ou nz oa ob ov od oe of ow oh oi oj po oq or bg"
+            data-selectable-paragraph=""><strong class="no gs">JWT Utility Class:</strong> Create a utility class for
+            generating and validating JWT tokens.</li>
+        <li id="eaa8" class="nm nn gr no b np os nr ns nt ot nv nw nx ou nz oa ob ov od oe of ow oh oi oj po oq or bg"
+            data-selectable-paragraph=""><strong class="no gs">Filter for JWT:</strong> Implement a filter to intercept
+            requests and extract/validate JWT tokens.</li>
+        <li id="e0d2" class="nm nn gr no b np os nr ns nt ot nv nw nx ou nz oa ob ov od oe of ow oh oi oj po oq or bg"
+            data-selectable-paragraph=""><strong class="no gs">Security Configuration: </strong>Update the security
+            configuration to include the JWT filter.</li>
+    </ol>
+    <p id="25ab"
+        class="pw-post-body-paragraph nm nn gr no b np ok nr ns nt ol nv nw nx om nz oa ob on od oe of oo oh oi oj gk bg"
+        data-selectable-paragraph="">Here is a simplified example:</p>
+    <h3 id="2bfe" class="pp mp gr bb mq pq pr ps mu pt pu pv my nx pw px py ob pz qa qb of qc qd qe qf bg"
+        data-selectable-paragraph="">JWT Utility Class:</h3>
+    <pre
+        class="pb pc pd pe pf pg pa ph bl pi ax bg"><span id="b89c" class="pj mp gr pa b bc pk pl e pm pn" data-selectable-paragraph=""><span class="hljs-keyword">import</span> io.<span class="hljs-property">jsonwebtoken</span>.<span class="hljs-property">Claims</span>;<br><span class="hljs-keyword">import</span> io.<span class="hljs-property">jsonwebtoken</span>.<span class="hljs-property">Jwts</span>;<br><span class="hljs-keyword">import</span> io.<span class="hljs-property">jsonwebtoken</span>.<span class="hljs-property">SignatureAlgorithm</span>;<br><br><span class="hljs-keyword">import</span> java.<span class="hljs-property">util</span>.<span class="hljs-property">Date</span>;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title.class">JwtUtil</span> {<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-title.class">String</span> secret = <span class="hljs-string">"your_secret_key"</span>;<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-title.class">String</span> <span class="hljs-title.function">generateToken</span>(<span class="hljs-params"><span class="hljs-built_in">String</span> username</span>) {<br>        <span class="hljs-keyword">return</span> <span class="hljs-title.class">Jwts</span>.<span class="hljs-title.function">builder</span>()<br>            .<span class="hljs-title.function">setSubject</span>(username)<br>            .<span class="hljs-title.function">setIssuedAt</span>(<span class="hljs-keyword">new</span> <span class="hljs-title.class">Date</span>(<span class="hljs-title.class">System</span>.<span class="hljs-title.function">currentTimeMillis</span>()))<br>            .<span class="hljs-title.function">setExpiration</span>(<span class="hljs-keyword">new</span> <span class="hljs-title.class">Date</span>(<span class="hljs-title.class">System</span>.<span class="hljs-title.function">currentTimeMillis</span>() + <span class="hljs-number">1000</span> * <span class="hljs-number">60</span> * <span class="hljs-number">60</span> * <span class="hljs-number">10</span>)) <span class="hljs-comment">// 10 hours</span><br>            .<span class="hljs-title.function">signWith</span>(<span class="hljs-title.class">SignatureAlgorithm</span>.<span class="hljs-property">HS512</span>, secret)<br>            .<span class="hljs-title.function">compact</span>();<br>    }<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-title.class">Claims</span> <span class="hljs-title.function">extractClaims</span>(<span class="hljs-params"><span class="hljs-built_in">String</span> token</span>) {<br>        <span class="hljs-keyword">return</span> <span class="hljs-title.class">Jwts</span>.<span class="hljs-title.function">parser</span>()<br>            .<span class="hljs-title.function">setSigningKey</span>(secret)<br>            .<span class="hljs-title.function">parseClaimsJws</span>(token)<br>            .<span class="hljs-title.function">getBody</span>();<br>    }<br><br>    <span class="hljs-keyword">public</span> <span class="hljs-built_in">boolean</span> <span class="hljs-title.function">validateToken</span>(<span class="hljs-params"><span class="hljs-built_in">String</span> token, <span class="hljs-built_in">String</span> username</span>) {<br>        final <span class="hljs-title.class">String</span> extractedUsername = <span class="hljs-title.function">extractClaims</span>(token).<span class="hljs-title.function">getSubject</span>();<br>        <span class="hljs-keyword">return</span> (extractedUsername.<span class="hljs-title.function">equals</span>(username) &amp;&amp; !<span class="hljs-title.function">isTokenExpired</span>(token));<br>    }<br><br>    <span class="hljs-keyword">private</span> <span class="hljs-built_in">boolean</span> <span class="hljs-title.function">isTokenExpired</span>(<span class="hljs-params"><span class="hljs-built_in">String</span> token</span>) {<br>        <span class="hljs-keyword">return</span> <span class="hljs-title.function">extractClaims</span>(token).<span class="hljs-title.function">getExpiration</span>().<span class="hljs-title.function">before</span>(<span class="hljs-keyword">new</span> <span class="hljs-title.class">Date</span>());<br>    }<br>}</span></pre>
+    <h3 id="92e1" class="pp mp gr bb mq pq pr ps mu pt pu pv my nx pw px py ob pz qa qb of qc qd qe qf bg"
+        data-selectable-paragraph="">JWT Filter:</h3>
+    <pre
+        class="pb pc pd pe pf pg pa ph bl pi ax bg"><span id="54cc" class="pj mp gr pa b bc pk pl e pm pn" data-selectable-paragraph=""><span class="hljs-keyword">import</span> javax.servlet.FilterChain;<br><span class="hljs-keyword">import</span> javax.servlet.ServletException;<br><span class="hljs-keyword">import</span> javax.servlet.http.HttpServletRequest;<br><span class="hljs-keyword">import</span> javax.servlet.http.HttpServletResponse;<br><br><span class="hljs-keyword">import</span> org.springframework.beans.factory.annotation.Autowired;<br><span class="hljs-keyword">import</span> org.springframework.security.core.context.SecurityContextHolder;<br><span class="hljs-keyword">import</span> org.springframework.security.core.userdetails.UserDetailsService;<br><span class="hljs-keyword">import</span> org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;<br><span class="hljs-keyword">import</span> org.springframework.security.authentication.UsernamePasswordAuthenticationToken;<br><span class="hljs-keyword">import</span> org.springframework.security.core.userdetails.UserDetails;<br><br><span class="hljs-keyword">import</span> java.io.IOException;<br><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title.class">JwtFilter</span> <span class="hljs-keyword">extends</span> <span class="hljs-title.class">UsernamePasswordAuthenticationFilter</span> {<br><br>    <span class="hljs-meta">@Autowired</span><br>    <span class="hljs-keyword">private</span> JwtUtil jwtUtil;<br><br>    <span class="hljs-meta">@Autowired</span><br>    <span class="hljs-keyword">private</span> UserDetailsService userDetailsService;<br><br>    <span class="hljs-meta">@Override</span><br>    <span class="hljs-keyword">protected</span> <span class="hljs-keyword">void</span> <span class="hljs-title.function">doFilterInternal</span><span class="hljs-params">(HttpServletRequest request, HttpServletResponse response, FilterChain chain)</span><br>            <span class="hljs-keyword">throws</span> ServletException, IOException {<br>        <span class="hljs-type">String</span> <span class="hljs-variable">authorizationHeader</span> <span class="hljs-operator">=</span> request.getHeader(<span class="hljs-string">"Authorization"</span>);<br><br>        <span class="hljs-type">String</span> <span class="hljs-variable">token</span> <span class="hljs-operator">=</span> <span class="hljs-literal">null</span>;<br>        <span class="hljs-type">String</span> <span class="hljs-variable">username</span> <span class="hljs-operator">=</span> <span class="hljs-literal">null</span>;<br><br>        <span class="hljs-keyword">if</span> (authorizationHeader != <span class="hljs-literal">null</span> &amp;&amp; authorizationHeader.startsWith(<span class="hljs-string">"Bearer "</span>)) {<br>            token = authorizationHeader.substring(<span class="hljs-number">7</span>);<br>            username = jwtUtil.extractClaims(token).getSubject();<br>        }<br><br>        <span class="hljs-keyword">if</span> (username != <span class="hljs-literal">null</span> &amp;&amp; SecurityContextHolder.getContext().getAuthentication() == <span class="hljs-literal">null</span>) {<br>            <span class="hljs-type">UserDetails</span> <span class="hljs-variable">userDetails</span> <span class="hljs-operator">=</span> userDetailsService.loadUserByUsername(username);<br><br>            <span class="hljs-keyword">if</span> (jwtUtil.validateToken(token, userDetails.getUsername())) {<br>                <span class="hljs-type">UsernamePasswordAuthenticationToken</span> <span class="hljs-variable">authToken</span> <span class="hljs-operator">=</span><br>                        <span class="hljs-keyword">new</span> <span class="hljs-title.class">UsernamePasswordAuthenticationToken</span>(userDetails, <span class="hljs-literal">null</span>, userDetails.getAuthorities());<br>                SecurityContextHolder.getContext().setAuthentication(authToken);<br>            }<br>        }<br>        chain.doFilter(request, response);<br>    }<br>}</span></pre>
+    <h3 id="1cf8" class="pp mp gr bb mq pq pr ps mu pt pu pv my nx pw px py ob pz qa qb of qc qd qe qf bg"
+        data-selectable-paragraph="">Security Configuration:</h3>
+    <pre
+        class="pb pc pd pe pf pg pa ph bl pi ax bg"><span id="da7a" class="pj mp gr pa b bc pk pl e pm pn" data-selectable-paragraph=""><span class="hljs-keyword">import</span> org.springframework.context.<span class="hljs-keyword">annotation</span>.Bean;<br><span class="hljs-keyword">import</span> org.springframework.context.<span class="hljs-keyword">annotation</span>.Configuration;<br><span class="hljs-keyword">import</span> org.springframework.security.config.<span class="hljs-keyword">annotation</span>.web.builders.HttpSecurity;<br><span class="hljs-keyword">import</span> org.springframework.security.config.<span class="hljs-keyword">annotation</span>.web.configuration.EnableWebSecurity;<br><span class="hljs-keyword">import</span> org.springframework.security.config.<span class="hljs-keyword">annotation</span>.web.configuration.WebSecurityConfigurerAdapter;<br><span class="hljs-keyword">import</span> org.springframework.security.config.<span class="hljs-keyword">annotation</span>.web.configuration.WebSecurityCustomizer;<br><span class="hljs-keyword">import</span> org.springframework.security.config.<span class="hljs-keyword">annotation</span>.web.configuration.EnableWebSecurity;<br><span class="hljs-keyword">import</span> org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;<br><span class="hljs-keyword">import</span> org.springframework.security.crypto.password.PasswordEncoder;<br><span class="hljs-keyword">import</span> org.springframework.security.web.SecurityFilterChain;<br><span class="hljs-keyword">import</span> org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;<br><br><span class="hljs-meta">@Configuration</span><br><span class="hljs-meta">@EnableWebSecurity</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title.class">SecurityConfig</span> {<br><br>    <span class="hljs-meta">@Bean</span><br>    <span class="hljs-keyword">public</span> SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {<br>        http<br>            .csrf().disable()<br>            .authorizeHttpRequests(authorizeRequests -&gt;<br>                authorizeRequests<br>                    .requestMatchers(<span class="hljs-string">"/public/**"</span>).permitAll()<br>                    .anyRequest().authenticated()<br>            )<br>            .addFilterBefore(jwtFilter(), UsernamePasswordAuthenticationFilter.<span class="hljs-keyword">class</span>);<br><br>        <span class="hljs-keyword">return</span> http.build();<br>    }<br><br>    <span class="hljs-meta">@Bean</span><br>    <span class="hljs-keyword">public</span> JwtFilter jwtFilter() {<br>        <span class="hljs-keyword">return</span> new JwtFilter();<br>    }<br><br>    <span class="hljs-meta">@Bean</span><br>    <span class="hljs-keyword">public</span> PasswordEncoder passwordEncoder() {<br>        <span class="hljs-keyword">return</span> new BCryptPasswordEncoder();<br>    }<br>}</span></pre>
+    <h2 id="2f2d" class="mo mp gr bb mq mr ms mt mu mv mw mx my mz na nb nc nd ne nf ng nh ni nj nk nl bg"
+        data-selectable-paragraph="">21. What is CORS and how do you configure it in Spring Security?</h2>
+    <p id="b785"
+        class="pw-post-body-paragraph nm nn gr no b np nq nr ns nt nu nv nw nx ny nz oa ob oc od oe of og oh oi oj gk bg"
+        data-selectable-paragraph=""><strong class="no gs">Answer: </strong>CORS (<strong class="no gs">Cross-Origin
+            Resource Sharing</strong>) is a security feature that allows or restricts resources on a web server to be
+        requested from another domain outside the server’s domain.</p>
+    <div class="qg v">
+        <div class="e"><a class="z ab ac fg af ag ah ai aj ak al am an ao ap v"
+                href="https://medium.com/plans?source=promotion_paragraph---post_body_banner_dot_calm_field--ffa3a329e9f5---------------------------------------"
+                rel="noopener follow">
+                <picture>
+                    <source media="(max-width: 551.98px)"
+                        srcset="https://miro.medium.com/v2/da:true/resize:fit:0/d6dcf4617637c8e98f002021dc575453d81a0a82cd46ee662501830bdd54215c">
+                    <source media="(min-width: 552px) and (max-width: 727.98px)"
+                        srcset="https://miro.medium.com/v2/da:true/resize:fit:0/d6dcf4617637c8e98f002021dc575453d81a0a82cd46ee662501830bdd54215c">
+                    <source media="(min-width: 728px) and (max-width: 903.98px)"
+                        srcset="https://miro.medium.com/v2/da:true/resize:fit:0/2ba3ddc2cfe10a239ae910a6b47b91661903633ac2505096e2ca6ac7c7debc39">
+                    <source media="(min-width: 904px) and (max-width: 1079.98px)"
+                        srcset="https://miro.medium.com/v2/da:true/resize:fit:0/2ba3ddc2cfe10a239ae910a6b47b91661903633ac2505096e2ca6ac7c7debc39">
+                    <source media="(min-width: 1080px)"
+                        srcset="https://miro.medium.com/v2/da:true/resize:fit:0/2ba3ddc2cfe10a239ae910a6b47b91661903633ac2505096e2ca6ac7c7debc39">
+                    <img alt="Become a Medium member" class="bd" loading="lazy">
+                </picture>
+            </a></div>
+    </div>
+    <p id="fca5" class="pw-post-body-paragraph nm nn gr no b np nr ns nt nv nw nx nz oa ob od oe of oh oi qg oj gk bg"
+        data-selectable-paragraph=""><strong class="no gs">To configure CORS in Spring Security:</strong></p>
+    <pre
+        class="pb pc pd pe pf pg pa ph bl pi ax bg"><span id="180e" class="pj mp gr pa b bc pk pl e pm pn" data-selectable-paragraph=""><span class="hljs-keyword">import</span> org.springframework.context.annotation.Bean;<br><span class="hljs-keyword">import</span> org.springframework.context.annotation.Configuration;<br><span class="hljs-keyword">import</span> org.springframework.web.cors.CorsConfiguration;<br><span class="hljs-keyword">import</span> org.springframework.web.cors.UrlBasedCorsConfigurationSource;<br><span class="hljs-keyword">import</span> org.springframework.web.filter.CorsFilter;<br><br><span class="hljs-meta">@Configuration</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title.class">CorsConfig</span> {<br><br>    <span class="hljs-meta">@Bean</span><br>    <span class="hljs-keyword">public</span> CorsFilter <span class="hljs-title.function">corsFilter</span><span class="hljs-params">()</span> {<br>        <span class="hljs-type">UrlBasedCorsConfigurationSource</span> <span class="hljs-variable">source</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title.class">UrlBasedCorsConfigurationSource</span>();<br>        <span class="hljs-type">CorsConfiguration</span> <span class="hljs-variable">config</span> <span class="hljs-operator">=</span> <span class="hljs-keyword">new</span> <span class="hljs-title.class">CorsConfiguration</span>();<br>        config.setAllowCredentials(<span class="hljs-literal">true</span>);<br>        config.addAllowedOrigin(<span class="hljs-string">"http://example.com"</span>);<br>        config.addAllowedHeader(<span class="hljs-string">"*"</span>);<br>        config.addAllowedMethod(<span class="hljs-string">"*"</span>);<br>        source.registerCorsConfiguration(<span class="hljs-string">"/**"</span>, config);<br>        <span class="hljs-keyword">return</span> <span class="hljs-keyword">new</span> <span class="hljs-title.class">CorsFilter</span>(source);<br>    }<br>}</span></pre>
+    <h2 id="87e5" class="mo mp gr bb mq mr ms mt mu mv mw mx my mz na nb nc nd ne nf ng nh ni nj nk nl bg"
+        data-selectable-paragraph="">22. What is role-based access control (RBAC) in Spring Security?</h2>
+    <p id="2885"
+        class="pw-post-body-paragraph nm nn gr no b np nq nr ns nt nu nv nw nx ny nz oa ob oc od oe of og oh oi oj gk bg"
+        data-selectable-paragraph=""><strong class="no gs">Answer: </strong>RBAC is a method of regulating access to
+        resources based on the roles assigned to users. In Spring Security, roles can be defined and checked in the
+        security configuration:</p>
+    <pre
+        class="pb pc pd pe pf pg pa ph bl pi ax bg"><span id="cddb" class="pj mp gr pa b bc pk pl e pm pn" data-selectable-paragraph=""><span class="hljs-selector-tag">http</span><br>    <span class="hljs-selector-class">.authorizeHttpRequests</span>(authorizeRequests -&gt;<br>        authorizeRequests<br>            .<span class="hljs-built_in">requestMatchers</span>(<span class="hljs-string">"/admin/**"</span>).<span class="hljs-built_in">hasRole</span>(<span class="hljs-string">"ADMIN"</span>)<br>            .<span class="hljs-built_in">requestMatchers</span>(<span class="hljs-string">"/user/**"</span>).<span class="hljs-built_in">hasRole</span>(<span class="hljs-string">"USER"</span>)<br>            .<span class="hljs-built_in">anyRequest</span>().<span class="hljs-built_in">authenticated</span>()<br>    );</span></pre>
+    <h2 id="0022" class="mo mp gr bb mq mr ms mt mu mv mw mx my mz na nb nc nd ne nf ng nh ni nj nk nl bg"
+        data-selectable-paragraph="">23. How can you use method security annotations?</h2>
+    <p id="2deb"
+        class="pw-post-body-paragraph nm nn gr no b np nq nr ns nt nu nv nw nx ny nz oa ob oc od oe of og oh oi oj gk bg"
+        data-selectable-paragraph=""><strong class="no gs">Answer:</strong> Spring Security allows the use of method
+        security annotations to secure individual methods. First, enable method security by using <code
+            class="db ox oy oz pa b"><strong class="no gs">@EnableMethodSecurity</strong></code> and then use
+        annotations like <code class="db ox oy oz pa b"><strong class="no gs">@PreAuthorize</strong></code><strong
+            class="no gs">, </strong><code
+            class="db ox oy oz pa b"><strong class="no gs">@PostAuthorize</strong></code><strong class="no gs">,
+        </strong><code class="db ox oy oz pa b"><strong class="no gs">@Secured</strong></code><strong class="no gs">,
+        </strong>or <code class="db ox oy oz pa b"><strong class="no gs">@RolesAllowed</strong></code>:</p>
+    <pre
+        class="pb pc pd pe pf pg pa ph bl pi ax bg"><span id="17af" class="pj mp gr pa b bc pk pl e pm pn" data-selectable-paragraph=""><span class="hljs-selector-tag">import</span> <span class="hljs-selector-tag">org</span><span class="hljs-selector-class">.springframework</span><span class="hljs-selector-class">.security</span><span class="hljs-selector-class">.access</span><span class="hljs-selector-class">.prepost</span><span class="hljs-selector-class">.PreAuthorize</span>;<br><span class="hljs-selector-tag">import</span> <span class="hljs-selector-tag">org</span><span class="hljs-selector-class">.springframework</span><span class="hljs-selector-class">.security</span><span class="hljs-selector-class">.access</span><span class="hljs-selector-class">.annotation</span><span class="hljs-selector-class">.Secured</span>;<br><span class="hljs-selector-tag">import</span> <span class="hljs-selector-tag">org</span><span class="hljs-selector-class">.springframework</span><span class="hljs-selector-class">.stereotype</span><span class="hljs-selector-class">.Service</span>;<br><br>@<span class="hljs-selector-tag">Service</span><br><span class="hljs-selector-tag">public</span> <span class="hljs-selector-tag">class</span> <span class="hljs-selector-tag">MyService</span> {<br><br>    <span class="hljs-variable">@PreAuthorize</span>(<span class="hljs-string">"hasRole('ADMIN')"</span>)<br>    public void <span class="hljs-built_in">adminOnlyMethod</span>() {<br>        <span class="hljs-comment">// Method implementation</span><br>    }<br><br>    <span class="hljs-variable">@Secured</span>(<span class="hljs-string">"ROLE_USER"</span>)<br>    public void <span class="hljs-built_in">userOnlyMethod</span>() {<br>        <span class="hljs-comment">// Method implementation</span><br>    }<br>}</span></pre>
+    <h2 id="3e47" class="mo mp gr bb mq mr ms mt mu mv mw mx my mz na nb nc nd ne nf ng nh ni nj nk nl bg"
+        data-selectable-paragraph="">24. How do you configure session management in Spring Security?</h2>
+    <p id="e57d"
+        class="pw-post-body-paragraph nm nn gr no b np nq nr ns nt nu nv nw nx ny nz oa ob oc od oe of og oh oi oj gk bg"
+        data-selectable-paragraph=""><strong class="no gs">Answer:</strong> You can configure session management to
+        control session creation and handling:</p>
+    <pre
+        class="pb pc pd pe pf pg pa ph bl pi ax bg"><span id="407d" class="pj mp gr pa b bc pk pl e pm pn" data-selectable-paragraph=""><span class="hljs-selector-tag">http</span><br>    <span class="hljs-selector-class">.sessionManagement</span>(sessionManagement -&gt;<br>        sessionManagement<br>            .<span class="hljs-built_in">sessionCreationPolicy</span>(SessionCreationPolicy.STATELESS)<br>    );</span></pre>
+    <p id="1578"
+        class="pw-post-body-paragraph nm nn gr no b np ok nr ns nt ol nv nw nx om nz oa ob on od oe of oo oh oi oj gk bg"
+        data-selectable-paragraph=""><code
+            class="db ox oy oz pa b"><strong class="no gs">SessionCreationPolicy</strong></code> options include:</p>
+    <ul class="">
+        <li id="fdfa" class="nm nn gr no b np ok nr ns nt ol nv nw nx om nz oa ob on od oe of oo oh oi oj op oq or bg"
+            data-selectable-paragraph=""><code
+                class="db ox oy oz pa b"><strong class="no gs">ALWAYS</strong></code><strong class="no gs">:</strong>
+            Always create a session.</li>
+        <li id="1672" class="nm nn gr no b np os nr ns nt ot nv nw nx ou nz oa ob ov od oe of ow oh oi oj op oq or bg"
+            data-selectable-paragraph=""><code
+                class="db ox oy oz pa b"><strong class="no gs">IF_REQUIRED</strong></code><strong
+                class="no gs">:</strong> Create a session only if required (default).</li>
+        <li id="b5eb" class="nm nn gr no b np os nr ns nt ot nv nw nx ou nz oa ob ov od oe of ow oh oi oj op oq or bg"
+            data-selectable-paragraph=""><code
+                class="db ox oy oz pa b"><strong class="no gs">NEVER</strong></code><strong class="no gs">:</strong>
+            Spring Security will never create a session but will use one if it exists.</li>
+        <li id="c8d7" class="nm nn gr no b np os nr ns nt ot nv nw nx ou nz oa ob ov od oe of ow oh oi oj op oq or bg"
+            data-selectable-paragraph=""><code
+                class="db ox oy oz pa b"><strong class="no gs">STATELESS</strong></code><strong class="no gs">:
+            </strong>Spring Security will never create or use a session.</li>
+    </ul>
+    <h2 id="e723" class="mo mp gr bb mq mr ms mt mu mv mw mx my mz na nb nc nd ne nf ng nh ni nj nk nl bg"
+        data-selectable-paragraph="">28. How do you enable basic authentication in Spring Security?</h2>
+    <p id="75f2"
+        class="pw-post-body-paragraph nm nn gr no b np nq nr ns nt nu nv nw nx ny nz oa ob oc od oe of og oh oi oj gk bg"
+        data-selectable-paragraph=""><strong class="no gs">Answer: </strong>Basic authentication can be enabled using
+        the <code class="db ox oy oz pa b"><strong class="no gs">httpBasic</strong></code> method in the security
+        configuration:</p>
+    <pre
+        class="pb pc pd pe pf pg pa ph bl pi ax bg"><span id="9818" class="pj mp gr pa b bc pk pl e pm pn" data-selectable-paragraph="">http<br>    <span class="hljs-selector-class">.authorizeHttpRequests</span>(authorizeRequests -&gt;<br>        authorizeRequests<br>            .anyRequest()<span class="hljs-selector-class">.authenticated</span>()<br>    )<br>    <span class="hljs-selector-class">.httpBasic</span>();</span></pre>
+    <h2 id="cdeb" class="mo mp gr bb mq mr ms mt mu mv mw mx my mz na nb nc nd ne nf ng nh ni nj nk nl bg"
+        data-selectable-paragraph="">29. How do you handle CSRF protection in Spring Security?</h2>
+    <p id="2a0b"
+        class="pw-post-body-paragraph nm nn gr no b np nq nr ns nt nu nv nw nx ny nz oa ob oc od oe of og oh oi oj gk bg"
+        data-selectable-paragraph=""><strong class="no gs">Answer:</strong> CSRF protection is enabled by default in
+        Spring Security. You can customize it or disable it (not recommended) in your security configuration:</p>
+    <pre
+        class="pb pc pd pe pf pg pa ph bl pi ax bg"><span id="d8b7" class="pj mp gr pa b bc pk pl e pm pn" data-selectable-paragraph=""><span class="hljs-selector-tag">http</span><br>    <span class="hljs-selector-class">.csrf</span>(csrf -&gt; csrf<br>        .<span class="hljs-built_in">csrfTokenRepository</span>(CookieCsrfTokenRepository.<span class="hljs-built_in">withHttpOnlyFalse</span>())<br>    );</span></pre>
+    <p id="92ed"
+        class="pw-post-body-paragraph nm nn gr no b np ok nr ns nt ol nv nw nx om nz oa ob on od oe of oo oh oi oj gk bg"
+        data-selectable-paragraph="">To disable CSRF (not recommended for production):</p>
+    <pre
+        class="pb pc pd pe pf pg pa ph bl pi ax bg"><span id="e503" class="pj mp gr pa b bc pk pl e pm pn" data-selectable-paragraph="">http<br>    <span class="hljs-selector-class">.csrf</span>()<span class="hljs-selector-class">.disable</span>();</span></pre>
+    <h2 id="f0e6" class="mo mp gr bb mq mr ms mt mu mv mw mx my mz na nb nc nd ne nf ng nh ni nj nk nl bg"
+        data-selectable-paragraph="">30. What is an <code class="db ox oy oz pa b">AuthenticationManager</code> and how
+        do you configure it?</h2>
+    <p id="4186"
+        class="pw-post-body-paragraph nm nn gr no b np nq nr ns nt nu nv nw nx ny nz oa ob oc od oe of og oh oi oj gk bg"
+        data-selectable-paragraph=""><strong class="no gs">Answer:</strong> <code
+            class="db ox oy oz pa b"><strong class="no gs">AuthenticationManager</strong></code> is responsible for
+        processing authentication requests. It uses <code
+            class="db ox oy oz pa b"><strong class="no gs">AuthenticationProvider</strong></code> to perform the actual
+        authentication. You can configure it in your security configuration:</p>
+    <pre
+        class="pb pc pd pe pf pg pa ph bl pi ax bg"><span id="ea81" class="pj mp gr pa b bc pk pl e pm pn" data-selectable-paragraph=""><span class="hljs-keyword">import</span> org.springframework.context.<span class="hljs-keyword">annotation</span>.Bean;<br><span class="hljs-keyword">import</span> org.springframework.context.<span class="hljs-keyword">annotation</span>.Configuration;<br><span class="hljs-keyword">import</span> org.springframework.security.authentication.AuthenticationManager;<br><span class="hljs-keyword">import</span> org.springframework.security.config.<span class="hljs-keyword">annotation</span>.authentication.configuration.AuthenticationConfiguration;<br><br><span class="hljs-meta">@Configuration</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title.class">AuthManagerConfig</span> {<br><br>    <span class="hljs-meta">@Bean</span><br>    <span class="hljs-keyword">public</span> AuthenticationManager authenticationManager(AuthenticationConfiguration authenticationConfiguration) throws Exception {<br>        <span class="hljs-keyword">return</span> authenticationConfiguration.getAuthenticationManager();<br>    }<br>}</span></pre>
+    <h2 id="43a7" class="mo mp gr bb mq mr ms mt mu mv mw mx my mz na nb nc nd ne nf ng nh ni nj nk nl bg"
+        data-selectable-paragraph="">39. What are the common annotations used in Spring Security?</h2>
+    <p id="1451"
+        class="pw-post-body-paragraph nm nn gr no b np nq nr ns nt nu nv nw nx ny nz oa ob oc od oe of og oh oi oj gk bg"
+        data-selectable-paragraph=""><strong class="no gs">Answer:</strong></p>
+    <ul class="">
+        <li id="3fbd" class="nm nn gr no b np ok nr ns nt ol nv nw nx om nz oa ob on od oe of oo oh oi oj op oq or bg"
+            data-selectable-paragraph=""><code
+                class="db ox oy oz pa b"><strong class="no gs">@EnableWebSecurity</strong></code><strong
+                class="no gs">:</strong> Enables web security in a Spring application.</li>
+        <li id="c40d" class="nm nn gr no b np os nr ns nt ot nv nw nx ou nz oa ob ov od oe of ow oh oi oj op oq or bg"
+            data-selectable-paragraph=""><code
+                class="db ox oy oz pa b"><strong class="no gs">@EnableMethodSecurity</strong></code>: Enables
+            method-level security.</li>
+        <li id="5d2b" class="nm nn gr no b np os nr ns nt ot nv nw nx ou nz oa ob ov od oe of ow oh oi oj op oq or bg"
+            data-selectable-paragraph=""><code
+                class="db ox oy oz pa b"><strong class="no gs">@PreAuthorize</strong></code>: Applies method-level
+            security using SpEL expressions.</li>
+        <li id="5502" class="nm nn gr no b np os nr ns nt ot nv nw nx ou nz oa ob ov od oe of ow oh oi oj op oq or bg"
+            data-selectable-paragraph=""><code
+                class="db ox oy oz pa b"><strong class="no gs">@PostAuthorize</strong></code>: Evaluates security after
+            the method execution.</li>
+        <li id="7379" class="nm nn gr no b np os nr ns nt ot nv nw nx ou nz oa ob ov od oe of ow oh oi oj op oq or bg"
+            data-selectable-paragraph=""><code class="db ox oy oz pa b"><strong class="no gs">@Secured</strong></code>:
+            Secures methods with specific roles.</li>
+        <li id="2192" class="nm nn gr no b np os nr ns nt ot nv nw nx ou nz oa ob ov od oe of ow oh oi oj op oq or bg"
+            data-selectable-paragraph=""><code
+                class="db ox oy oz pa b"><strong class="no gs">@RolesAllowed</strong></code><strong class="no gs">:
+            </strong>Specifies roles allowed to access methods.</li>
+    </ul>
+    <p id="dc17"
+        class="pw-post-body-paragraph nm nn gr no b np ok nr ns nt ol nv nw nx om nz oa ob on od oe of oo oh oi oj gk bg"
+        data-selectable-paragraph="">Change in spring boot 3 in spring security</p>
+    <p id="a2f8"
+        class="pw-post-body-paragraph nm nn gr no b np ok nr ns nt ol nv nw nx om nz oa ob on od oe of oo oh oi oj gk bg"
+        data-selectable-paragraph="">In <strong class="no gs">Spring Security 5.7.0-M2</strong>, the <code
+            class="db ox oy oz pa b"><strong class="no gs">WebSecurityConfigurerAdapter</strong></code> class was
+        deprecated to encourage a more modular and component-based approach to security configuration.</p>
+    <p id="28c0"
+        class="pw-post-body-paragraph nm nn gr no b np ok nr ns nt ol nv nw nx om nz oa ob on od oe of oo oh oi oj gk bg"
+        data-selectable-paragraph="">This new method involves creating a <code
+            class="db ox oy oz pa b"><strong class="no gs">SecurityFilterChai</strong>n</code> bean to configure <code
+            class="db ox oy oz pa b"><strong class="no gs">HttpSecurity</strong></code>. This approach provides more
+        flexibility and leverages the power of Spring's dependency injection to manage security configurations.</p>
+    <p id="54ab"
+        class="pw-post-body-paragraph nm nn gr no b np ok nr ns nt ol nv nw nx om nz oa ob on od oe of oo oh oi oj gk bg"
+        data-selectable-paragraph="">Here’s an explanation and code example for migrating from <code
+            class="db ox oy oz pa b"><strong class="no gs">WebSecurityConfigurerAdapter</strong></code> to the new <code
+            class="db ox oy oz pa b"><strong class="no gs">SecurityFilterChain</strong></code> approach:</p>
+    <h2 id="9537" class="mo mp gr bb mq mr ms mt mu mv mw mx my mz na nb nc nd ne nf ng nh ni nj nk nl bg"
+        data-selectable-paragraph="">Old Approach with WebSecurityConfigurerAdapter</h2>
+    <pre
+        class="pb pc pd pe pf pg pa ph bl pi ax bg"><span id="f8b2" class="pj mp gr pa b bc pk pl e pm pn" data-selectable-paragraph="">import org<span class="hljs-selector-class">.springframework</span><span class="hljs-selector-class">.security</span><span class="hljs-selector-class">.config</span><span class="hljs-selector-class">.annotation</span><span class="hljs-selector-class">.web</span><span class="hljs-selector-class">.builders</span><span class="hljs-selector-class">.HttpSecurity</span>;<br>import org<span class="hljs-selector-class">.springframework</span><span class="hljs-selector-class">.security</span><span class="hljs-selector-class">.config</span><span class="hljs-selector-class">.annotation</span><span class="hljs-selector-class">.web</span><span class="hljs-selector-class">.configuration</span><span class="hljs-selector-class">.WebSecurityConfigurerAdapter</span>;<br><br>public class SecurityConfig extends WebSecurityConfigurerAdapter {<br><br>    <span class="hljs-keyword">@Override</span><br>    protected void configure(HttpSecurity http) throws Exception {<br>        http<br>            <span class="hljs-selector-class">.authorizeRequests</span>()<br>                <span class="hljs-selector-class">.antMatchers</span>("/public/**")<span class="hljs-selector-class">.permitAll</span>()<br>                <span class="hljs-selector-class">.anyRequest</span>()<span class="hljs-selector-class">.authenticated</span>()<br>            <span class="hljs-selector-class">.and</span>()<br>            <span class="hljs-selector-class">.formLogin</span>()<br>                <span class="hljs-selector-class">.loginPage</span>("/login")<br>                <span class="hljs-selector-class">.permitAll</span>()<br>            <span class="hljs-selector-class">.and</span>()<br>            <span class="hljs-selector-class">.logout</span>()<br>                <span class="hljs-selector-class">.permitAll</span>();<br>    }<br>}</span></pre>
+    <h2 id="fd4c" class="mo mp gr bb mq mr ms mt mu mv mw mx my mz na nb nc nd ne nf ng nh ni nj nk nl bg"
+        data-selectable-paragraph="">New Approach with SecurityFilterChain</h2>
+    <pre
+        class="pb pc pd pe pf pg pa ph bl pi ax bg"><span id="5bd9" class="pj mp gr pa b bc pk pl e pm pn" data-selectable-paragraph=""><span class="hljs-keyword">import</span> org.springframework.context.<span class="hljs-keyword">annotation</span>.Bean;<br><span class="hljs-keyword">import</span> org.springframework.context.<span class="hljs-keyword">annotation</span>.Configuration;<br><span class="hljs-keyword">import</span> org.springframework.security.config.<span class="hljs-keyword">annotation</span>.web.builders.HttpSecurity;<br><span class="hljs-keyword">import</span> org.springframework.security.config.<span class="hljs-keyword">annotation</span>.web.configuration.EnableWebSecurity;<br><span class="hljs-keyword">import</span> org.springframework.security.core.userdetails.User;<br><span class="hljs-keyword">import</span> org.springframework.security.core.userdetails.UserDetails;<br><span class="hljs-keyword">import</span> org.springframework.security.core.userdetails.UserDetailsService;<br><span class="hljs-keyword">import</span> org.springframework.security.provisioning.InMemoryUserDetailsManager;<br><span class="hljs-keyword">import</span> org.springframework.security.web.SecurityFilterChain;<br><br><span class="hljs-meta">@Configuration</span><br><span class="hljs-meta">@EnableWebSecurity</span><br><span class="hljs-keyword">public</span> <span class="hljs-keyword">class</span> <span class="hljs-title.class">SecurityConfig</span> {<br><br>    <span class="hljs-meta">@Bean</span><br>    <span class="hljs-keyword">public</span> SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {<br>        http<br>            .authorizeHttpRequests(authorize -&gt; authorize<br>                .requestMatchers(<span class="hljs-string">"/public/**"</span>).permitAll()<br>                .anyRequest().authenticated()<br>            )<br>            .formLogin(formLogin -&gt; formLogin<br>                .loginPage(<span class="hljs-string">"/login"</span>)<br>                .permitAll()<br>            )<br>            .logout(logout -&gt; logout<br>                .permitAll()<br>            );<br>        <span class="hljs-keyword">return</span> http.build();<br>    }<br><br>    <span class="hljs-meta">@Bean</span><br>    <span class="hljs-keyword">public</span> UserDetailsService userDetailsService() {<br>        UserDetails user = User.withDefaultPasswordEncoder()<br>            .username(<span class="hljs-string">"user"</span>)<br>            .password(<span class="hljs-string">"password"</span>)<br>            .roles(<span class="hljs-string">"USER"</span>)<br>            .build();<br>        <span class="hljs-keyword">return</span> new InMemoryUserDetailsManager(user);<br>    }<br>}</span></pre>
+    <h2 id="c685" class="mo mp gr bb mq mr ms mt mu mv mw mx my mz na nb nc nd ne nf ng nh ni nj nk nl bg"
+        data-selectable-paragraph="">Explanation of the New Approach</h2>
+    <ol class="">
+        <li id="c345" class="nm nn gr no b np nq nr ns nt nu nv nw nx ny nz oa ob oc od oe of og oh oi oj po oq or bg"
+            data-selectable-paragraph="">SecurityFilterChain Bean: The <code
+                class="db ox oy oz pa b"><strong class="no gs">SecurityFilterChain</strong></code> bean configures <code
+                class="db ox oy oz pa b"><strong class="no gs">HttpSecurity</strong></code> to set up authorization
+            rules, form login, and logout settings.</li>
+        <li id="7816" class="nm nn gr no b np os nr ns nt ot nv nw nx ou nz oa ob ov od oe of ow oh oi oj po oq or bg"
+            data-selectable-paragraph="">HttpSecurity Configuration: Inside the <code
+                class="db ox oy oz pa b"><strong class="no gs">SecurityFilterChain</strong></code> bean, <code
+                class="db ox oy oz pa b"><strong class="no gs">HttpSecurity</strong></code> is customized similarly to
+            the old approach.</li>
+    </ol>
+    <ul class="">
+        <li id="3be0" class="nm nn gr no b np ok nr ns nt ol nv nw nx om nz oa ob on od oe of oo oh oi oj op oq or bg"
+            data-selectable-paragraph=""><code
+                class="db ox oy oz pa b"><strong class="no gs">authorizeHttpRequests</strong></code> replaces <code
+                class="db ox oy oz pa b"><strong class="no gs">authorizeRequests</strong></code>.</li>
+        <li id="2c6a" class="nm nn gr no b np os nr ns nt ot nv nw nx ou nz oa ob ov od oe of ow oh oi oj op oq or bg"
+            data-selectable-paragraph=""><code
+                class="db ox oy oz pa b"><strong class="no gs">requestMatchers</strong></code> replaces <code
+                class="db ox oy oz pa b"><strong class="no gs">antMatchers</strong></code>.</li>
+        <li id="63d6" class="nm nn gr no b np os nr ns nt ot nv nw nx ou nz oa ob ov od oe of ow oh oi oj op oq or bg"
+            data-selectable-paragraph="">The <code
+                class="db ox oy oz pa b"><strong class="no gs">formLogin</strong></code> and <code
+                class="db ox oy oz pa b"><strong class="no gs">logout</strong></code> configurations remain similar,
+            with lambda syntax providing better readability.</li>
+    </ul>
+    <p id="9118"
+        class="pw-post-body-paragraph nm nn gr no b np ok nr ns nt ol nv nw nx om nz oa ob on od oe of oo oh oi oj gk bg"
+        data-selectable-paragraph="">3. <strong class="no gs">UserDetailsService Bean</strong>: This bean defines an
+        in-memory user store for demonstration purposes. <code
+            class="db ox oy oz pa b"><strong class="no gs">UserDetailsService</strong></code> can be customized to fetch
+        users from a database or other sources in real applications.</p>
+    <h2 id="16e5" class="mo mp gr bb mq mr ms mt mu mv mw mx my mz na nb nc nd ne nf ng nh ni nj nk nl bg"
+        data-selectable-paragraph="">Benefits of the New Approach</h2>
+    <ul class="">
+        <li id="9536" class="nm nn gr no b np nq nr ns nt nu nv nw nx ny nz oa ob oc od oe of og oh oi oj op oq or bg"
+            data-selectable-paragraph=""><strong class="no gs">Component-Based Configuration</strong>: Breaking down
+            security configuration into separate beans makes the codebase more modular and easier to manage.</li>
+        <li id="900a" class="nm nn gr no b np os nr ns nt ot nv nw nx ou nz oa ob ov od oe of ow oh oi oj op oq or bg"
+            data-selectable-paragraph=""><strong class="no gs">Better Integration with Spring</strong>: Using beans
+            leverages Spring’s dependency injection, making it easier to test and configure.</li>
+        <li id="ee71" class="nm nn gr no b np os nr ns nt ot nv nw nx ou nz oa ob ov od oe of ow oh oi oj op oq or bg"
+            data-selectable-paragraph=""><strong class="no gs">Flexibility</strong>: This approach allows you to have
+            multiple security configurations by defining multiple <code
+                class="db ox oy oz pa b"><strong class="no gs">SecurityFilterChain</strong></code> beans with different
+            order values.</li>
+    </ul>
+    <h2 id="8a64" class="mo mp gr bb mq mr ms mt mu mv mw mx my mz na nb nc nd ne nf ng nh ni nj nk nl bg"
+        data-selectable-paragraph="">Migration Steps</h2>
+    <ol class="">
+        <li id="42eb" class="nm nn gr no b np nq nr ns nt nu nv nw nx ny nz oa ob oc od oe of og oh oi oj po oq or bg"
+            data-selectable-paragraph=""><strong class="no gs">Remove WebSecurityConfigurerAdapter:</strong> Remove any
+            classes extending <code
+                class="db ox oy oz pa b"><strong class="no gs">WebSecurityConfigurerAdapter</strong></code>.</li>
+        <li id="0a97" class="nm nn gr no b np os nr ns nt ot nv nw nx ou nz oa ob ov od oe of ow oh oi oj po oq or bg"
+            data-selectable-paragraph=""><strong class="no gs">Create SecurityFilterChain Beans</strong>: Define one or
+            more <code class="db ox oy oz pa b"><strong class="no gs">SecurityFilterChain</strong></code> beans to
+            handle security configurations.</li>
+        <li id="b241" class="nm nn gr no b np os nr ns nt ot nv nw nx ou nz oa ob ov od oe of ow oh oi oj po oq or bg"
+            data-selectable-paragraph=""><strong class="no gs">Define UserDetailsService Bean:</strong> Configure a
+            <code class="db ox oy oz pa b"><strong class="no gs">UserDetailsService</strong></code><strong
+                class="no gs"> </strong>bean to manage user details.</li>
+    </ol>
+</div>

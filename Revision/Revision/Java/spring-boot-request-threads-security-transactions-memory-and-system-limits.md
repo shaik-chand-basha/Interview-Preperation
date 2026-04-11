@@ -1,0 +1,693 @@
+<div
+    class="w-full mx-auto prose prose-lg prose-headings:font-semibold max-w-none prose-headings:leading-snug blog-container dark:prose-invert prose-h2:text-2xl prose-h3:text-xl prose-h4:text-lg">
+    
+    <h2 id="overview--the-complete-request-journey" class="relative group scroll-mt-6">Overview — The Complete Request
+        Journey<a aria-label="jump-to-section-links"
+            class="pl-2 font-bold no-underline opacity-0 hover:underline text-primary group-hover:opacity-100"
+            href="#overview--the-complete-request-journey">#</a></h2>
+    <p>When a client sends an HTTP request to a Spring Boot application, it enters a well-defined pipeline. Each stage
+        has a specific role. Nothing happens randomly.</p>
+    <p>At the highest level, the journey looks like this:</p>
+    <ol>
+        <li>The client sends a TCP connection and HTTP request to the embedded server (Tomcat by default).</li>
+        <li>The server accepts the connection and assigns a worker thread from its thread pool.</li>
+        <li>The request passes through the Servlet filter chain, which includes Spring Security filters.</li>
+        <li>The authenticated request reaches <code
+                class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">DispatcherServlet</code>, which routes
+            it to the correct controller method.</li>
+        <li>The controller delegates work to a service, which may open a database transaction and interact with a
+            repository.</li>
+        <li>A database connection is borrowed from the connection pool, queries are executed, and the connection is
+            returned.</li>
+        <li>The response is serialized (usually to JSON) and written back over the TCP connection.</li>
+        <li>The thread is released back to the pool, ready for the next request.</li>
+    </ol>
+    <p>Every single one of these steps has performance implications, memory implications, and failure modes. Let us go
+        through each one carefully.</p>
+    <figure class="image"><!--$--><!--$--><!--/$--><!--/$--><img
+            src="https://cs-prod-assets-bucket.s3.ap-south-1.amazonaws.com/HTTP_request_lifecycle_in_Spring_Boot_11fad3b200.webp"
+            alt="HTTP request lifecycle in SpringBoot"
+            class="mx-auto cursor-zoom-in max-sm:w-screen max-sm:pointer-events-none">
+        <figcaption>HTTP request lifecycle in SpringBoot</figcaption>
+    </figure>
+    <hr>
+    <h2 id="request-entry-and-thread-assignment" class="relative group scroll-mt-6">Request Entry and Thread
+        Assignment<a aria-label="jump-to-section-links"
+            class="pl-2 font-bold no-underline opacity-0 hover:underline text-primary group-hover:opacity-100"
+            href="#request-entry-and-thread-assignment">#</a></h2>
+    <h3 id="what-is-a-thread" class="relative group scroll-mt-6">What is a Thread<a aria-label="jump-to-section-links"
+            class="pl-2 font-bold no-underline opacity-0 hover:underline text-primary group-hover:opacity-100"
+            href="#what-is-a-thread">#</a></h3>
+    <p>A thread is the smallest unit of execution in a Java process. When your Spring Boot application starts, it runs
+        inside a single JVM process. That process can run many threads concurrently, each with its own execution stack,
+        meaning each thread tracks its own method calls, local variables, and program counter independently.</p>
+    <p>Threads share heap memory, which is where objects live. But each thread has private stack memory, which is where
+        its method call frames live. This distinction matters because it is exactly how Spring Boot isolates request
+        state.</p>
+    <h3 id="how-the-server-assigns-a-thread" class="relative group scroll-mt-6">How the Server Assigns a Thread<a
+            aria-label="jump-to-section-links"
+            class="pl-2 font-bold no-underline opacity-0 hover:underline text-primary group-hover:opacity-100"
+            href="#how-the-server-assigns-a-thread">#</a></h3>
+    <p>Spring Boot ships with an embedded Tomcat server by default. When Tomcat starts, it creates a pool of worker
+        threads. This pool sits idle, waiting for incoming connections.</p>
+    <p>When a new HTTP request arrives, Tomcat accepts the TCP connection on the acceptor thread, then hands the actual
+        request processing off to a worker thread from the pool. From that moment forward, the entire lifecycle of that
+        request — filters, controllers, services, database calls — happens on that one worker thread unless you
+        explicitly change that.</p>
+    <p>This is called the thread-per-request model. It is the default behavior in Spring MVC.</p>
+    <pre
+        class="border text-[#e5e7eb] border-blog-border not-prose text-base rounded-lg my-4 p-0 relative !bg-[#0F172A] dark:!bg-[#07090F] grid"><div class="absolute z-[2] top-2.5 right-3"><button aria-checked="false" class="relative group flex items-center justify-center border border-gray-600 rounded-lg w-9 h-9" fdprocessedid="steehi"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-copy text-gray-600 transition-all duration-300 group-hover:text-blue-500 group-aria-checked:scale-0"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check absolute transition-transform duration-300 scale-0 -translate-y-1/2 top-2/4 text-success group-aria-checked:scale-100"><path d="M20 6 9 17l-5-5"></path></svg></button></div><div dir="ltr" class="relative overflow-hidden w-full max-w-full p-4" style="position:relative;--radix-scroll-area-corner-width:0px;--radix-scroll-area-corner-height:0px"><style>[data-radix-scroll-area-viewport]{scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch;}[data-radix-scroll-area-viewport]::-webkit-scrollbar{display:none}</style><div data-radix-scroll-area-viewport="" class="h-full w-full rounded-[inherit]" style="overflow: scroll;"><div style="min-width:100%;display:table"><div class="!bg-inherit pb-0 "><div><code><span class="line"><span style="color:#7F848E;font-style:italic">// This entire method executes on one worker thread</span></span>
+<span class="line"><span style="color:#ABB2BF">@</span><span style="color:#E5C07B">GetMapping</span><span style="color:#E06C75">(</span><span style="color:#98C379">"/orders/{id}"</span><span style="color:#E06C75">)</span></span>
+<span class="line"><span style="color:#C678DD">public</span><span style="color:#E5C07B"> ResponseEntity</span><span style="color:#56B6C2">&lt;</span><span style="color:#E06C75">Order</span><span style="color:#56B6C2">&gt;</span><span style="color:#61AFEF"> getOrder</span><span style="color:#E06C75">(</span><span style="color:#ABB2BF">@</span><span style="color:#E5C07B">PathVariable</span><span style="color:#E5C07B"> Long</span><span style="color:#E06C75"> id) {</span></span>
+<span class="line"><span style="color:#C678DD">    return</span><span style="color:#E5C07B"> ResponseEntity</span><span style="color:#ABB2BF">.</span><span style="color:#61AFEF">ok</span><span style="color:#ABB2BF">(</span><span style="color:#E5C07B">orderService</span><span style="color:#ABB2BF">.</span><span style="color:#61AFEF">findById</span><span style="color:#ABB2BF">(id));</span></span>
+<span class="line"><span style="color:#E06C75">}</span></span>
+<span class="line"></span></code></div></div></div></div></div></pre>
+    <p>The thread is occupied for the full duration of the request. If your method blocks on a database query for 200ms,
+        the thread is held for those 200ms and cannot serve any other request during that time.</p>
+    <h3 id="async-and-reactive-exceptions" class="relative group scroll-mt-6">Async and Reactive Exceptions<a
+            aria-label="jump-to-section-links"
+            class="pl-2 font-bold no-underline opacity-0 hover:underline text-primary group-hover:opacity-100"
+            href="#async-and-reactive-exceptions">#</a></h3>
+    <p>If you introduce <code class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">@Async</code>, <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">CompletableFuture</code>, or Spring
+        WebFlux, work may move to a different thread mid-request. When that happens, critical pieces of thread-local
+        state — specifically the <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">SecurityContextHolder</code> and any
+        active transaction — do not automatically follow. They are bound to the original thread and become invisible on
+        the new thread.</p>
+    <pre
+        class="border text-[#e5e7eb] border-blog-border not-prose text-base rounded-lg my-4 p-0 relative !bg-[#0F172A] dark:!bg-[#07090F] grid"><div class="absolute z-[2] top-2.5 right-3"><button aria-checked="false" class="relative group flex items-center justify-center border border-gray-600 rounded-lg w-9 h-9" fdprocessedid="vtyrzx"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-copy text-gray-600 transition-all duration-300 group-hover:text-blue-500 group-aria-checked:scale-0"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check absolute transition-transform duration-300 scale-0 -translate-y-1/2 top-2/4 text-success group-aria-checked:scale-100"><path d="M20 6 9 17l-5-5"></path></svg></button></div><div dir="ltr" class="relative overflow-hidden w-full max-w-full p-4" style="position:relative;--radix-scroll-area-corner-width:0px;--radix-scroll-area-corner-height:0px"><style>[data-radix-scroll-area-viewport]{scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch;}[data-radix-scroll-area-viewport]::-webkit-scrollbar{display:none}</style><div data-radix-scroll-area-viewport="" class="h-full w-full rounded-[inherit]" style="overflow: scroll;"><div style="min-width:100%;display:table"><div class="!bg-inherit pb-0 "><div><code><span class="line"><span style="color:#ABB2BF">@</span><span style="color:#E5C07B">Async</span></span>
+<span class="line"><span style="color:#C678DD">public</span><span style="color:#E5C07B"> CompletableFuture</span><span style="color:#56B6C2">&lt;</span><span style="color:#E06C75">String</span><span style="color:#56B6C2">&gt;</span><span style="color:#61AFEF"> processAsync</span><span style="color:#E06C75">() {</span></span>
+<span class="line"><span style="color:#7F848E;font-style:italic">    // This runs on a different thread</span></span>
+<span class="line"><span style="color:#7F848E;font-style:italic">    // SecurityContextHolder.getContext() may return an empty context here</span></span>
+<span class="line"><span style="color:#E5C07B">    Authentication</span><span style="color:#E06C75"> auth </span><span style="color:#56B6C2">=</span><span style="color:#E5C07B"> SecurityContextHolder</span><span style="color:#ABB2BF">.</span><span style="color:#61AFEF">getContext</span><span style="color:#ABB2BF">().</span><span style="color:#61AFEF">getAuthentication</span><span style="color:#ABB2BF">();</span></span>
+<span class="line"><span style="color:#C678DD">    return</span><span style="color:#E5C07B"> CompletableFuture</span><span style="color:#ABB2BF">.</span><span style="color:#61AFEF">completedFuture</span><span style="color:#ABB2BF">(</span><span style="color:#E5C07B">auth</span><span style="color:#ABB2BF">.</span><span style="color:#61AFEF">getName</span><span style="color:#ABB2BF">());</span><span style="color:#7F848E;font-style:italic"> // may throw NullPointerException</span></span>
+<span class="line"><span style="color:#E06C75">}</span></span>
+<span class="line"></span></code></div></div></div></div></div></pre>
+    <p>You must explicitly propagate state when crossing thread boundaries. Spring provides <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">DelegatingSecurityContextRunnable</code>
+        and <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">DelegatingSecurityContextCallable</code>
+        for this. In WebFlux, use <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">ReactiveSecurityContextHolder</code>.</p>
+    <hr>
+    <h2 id="thread-pool-and-request-concurrency" class="relative group scroll-mt-6">Thread Pool and Request
+        Concurrency<a aria-label="jump-to-section-links"
+            class="pl-2 font-bold no-underline opacity-0 hover:underline text-primary group-hover:opacity-100"
+            href="#thread-pool-and-request-concurrency">#</a></h2>
+    <h3 id="how-the-thread-pool-works" class="relative group scroll-mt-6">How the Thread Pool Works<a
+            aria-label="jump-to-section-links"
+            class="pl-2 font-bold no-underline opacity-0 hover:underline text-primary group-hover:opacity-100"
+            href="#how-the-thread-pool-works">#</a></h3>
+    <p>Tomcat maintains a bounded thread pool. By default, it allows up to 200 worker threads. When a request arrives, a
+        free thread is taken from the pool and assigned to that request. When the request finishes, the thread is
+        returned to the pool and becomes available again.</p>
+    <p>You can tune this in <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">application.properties</code>:</p>
+    <pre
+        class="border text-[#e5e7eb] border-blog-border not-prose text-base rounded-lg my-4 p-0 relative !bg-[#0F172A] dark:!bg-[#07090F] grid"><div class="absolute z-[2] top-2.5 right-3"><button aria-checked="false" class="relative group flex items-center justify-center border border-gray-600 rounded-lg w-9 h-9" fdprocessedid="copjkm"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-copy text-gray-600 transition-all duration-300 group-hover:text-blue-500 group-aria-checked:scale-0"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check absolute transition-transform duration-300 scale-0 -translate-y-1/2 top-2/4 text-success group-aria-checked:scale-100"><path d="M20 6 9 17l-5-5"></path></svg></button></div><div dir="ltr" class="relative overflow-hidden w-full max-w-full p-4" style="position:relative;--radix-scroll-area-corner-width:0px;--radix-scroll-area-corner-height:0px"><style>[data-radix-scroll-area-viewport]{scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch;}[data-radix-scroll-area-viewport]::-webkit-scrollbar{display:none}</style><div data-radix-scroll-area-viewport="" class="h-full w-full rounded-[inherit]" style="overflow: scroll;"><div style="min-width:100%;display:table"><div class="!bg-inherit pb-0 "><div><code><span class="line"><span style="color:#ABB2BF">server</span><span style="color:#ABB2BF">.</span><span style="color:#ABB2BF">tomcat</span><span style="color:#ABB2BF">.</span><span style="color:#ABB2BF">threads</span><span style="color:#ABB2BF">.</span><span style="color:#ABB2BF">max</span><span style="color:#56B6C2">=</span><span style="color:#D19A66">200</span></span>
+<span class="line"><span style="color:#ABB2BF">server</span><span style="color:#ABB2BF">.</span><span style="color:#ABB2BF">tomcat</span><span style="color:#ABB2BF">.</span><span style="color:#ABB2BF">threads</span><span style="color:#ABB2BF">.</span><span style="color:#ABB2BF">min</span><span style="color:#56B6C2">-</span><span style="color:#ABB2BF">spare</span><span style="color:#56B6C2">=</span><span style="color:#D19A66">10</span></span>
+<span class="line"><span style="color:#ABB2BF">server</span><span style="color:#ABB2BF">.</span><span style="color:#ABB2BF">tomcat</span><span style="color:#ABB2BF">.</span><span style="color:#ABB2BF">accept</span><span style="color:#56B6C2">-</span><span style="color:#ABB2BF">count</span><span style="color:#56B6C2">=</span><span style="color:#D19A66">100</span></span>
+<span class="line"></span></code></div></div></div></div></div></pre>
+    <p><code class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">threads.max</code> defines the maximum
+        number of concurrent requests being actively processed. <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">accept-count</code> defines how many
+        requests can be queued waiting for a thread when the pool is full.</p>
+    <h3 id="concurrent-request-processing" class="relative group scroll-mt-6">Concurrent Request Processing<a
+            aria-label="jump-to-section-links"
+            class="pl-2 font-bold no-underline opacity-0 hover:underline text-primary group-hover:opacity-100"
+            href="#concurrent-request-processing">#</a></h3>
+    <p>Two requests arriving at the same millisecond are handled on two separate threads simultaneously. They may be
+        executing code in the same service class and the same repository class at the same time, but each has its own
+        stack, its own local variables, and its own thread-local state. This is how Spring achieves request isolation
+        without any locking overhead in the typical case.</p>
+    <pre
+        class="border text-[#e5e7eb] border-blog-border not-prose text-base rounded-lg my-4 p-0 relative !bg-[#0F172A] dark:!bg-[#07090F] grid"><div class="absolute z-[2] top-2.5 right-3"><button aria-checked="false" class="relative group flex items-center justify-center border border-gray-600 rounded-lg w-9 h-9" fdprocessedid="2itfl8"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-copy text-gray-600 transition-all duration-300 group-hover:text-blue-500 group-aria-checked:scale-0"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check absolute transition-transform duration-300 scale-0 -translate-y-1/2 top-2/4 text-success group-aria-checked:scale-100"><path d="M20 6 9 17l-5-5"></path></svg></button></div><div dir="ltr" class="relative overflow-hidden w-full max-w-full p-4" style="position:relative;--radix-scroll-area-corner-width:0px;--radix-scroll-area-corner-height:0px"><style>[data-radix-scroll-area-viewport]{scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch;}[data-radix-scroll-area-viewport]::-webkit-scrollbar{display:none}</style><div data-radix-scroll-area-viewport="" class="h-full w-full rounded-[inherit]" style="overflow: scroll;"><div style="min-width:100%;display:table"><div class="!bg-inherit pb-0 "><div><code><span class="line"><span style="color:#E5C07B">Thread</span><span style="color:#56B6C2">-</span><span style="color:#D19A66">47</span><span style="color:#ABB2BF">: </span><span style="color:#E5C07B">GET</span><span style="color:#56B6C2"> /</span><span style="color:#ABB2BF">orders</span><span style="color:#56B6C2">/</span><span style="color:#D19A66">101</span><span style="color:#56B6C2"> -&gt;</span><span style="color:#E5C07B"> SecurityContext</span><span style="color:#ABB2BF">(user</span><span style="color:#56B6C2">=</span><span style="color:#ABB2BF">alice) </span><span style="color:#56B6C2">-&gt;</span><span style="color:#E5C07B"> Transaction</span><span style="color:#56B6C2">-</span><span style="color:#E5C07B">A</span><span style="color:#56B6C2"> -&gt;</span><span style="color:#E5C07B"> Connection</span><span style="color:#56B6C2">-</span><span style="color:#D19A66">1</span></span>
+<span class="line"><span style="color:#E5C07B">Thread</span><span style="color:#56B6C2">-</span><span style="color:#D19A66">52</span><span style="color:#ABB2BF">: </span><span style="color:#E5C07B">GET</span><span style="color:#56B6C2"> /</span><span style="color:#ABB2BF">orders</span><span style="color:#56B6C2">/</span><span style="color:#D19A66">202</span><span style="color:#56B6C2"> -&gt;</span><span style="color:#E5C07B"> SecurityContext</span><span style="color:#ABB2BF">(user</span><span style="color:#56B6C2">=</span><span style="color:#ABB2BF">bob)   </span><span style="color:#56B6C2">-&gt;</span><span style="color:#E5C07B"> Transaction</span><span style="color:#56B6C2">-</span><span style="color:#E5C07B">B</span><span style="color:#56B6C2"> -&gt;</span><span style="color:#E5C07B"> Connection</span><span style="color:#56B6C2">-</span><span style="color:#D19A66">2</span></span>
+<span class="line"></span></code></div></div></div></div></div></pre>
+    <p>These two requests run in complete isolation from each other, even though they are executing the same code paths.
+    </p>
+    <h3 id="what-happens-when-the-pool-is-full" class="relative group scroll-mt-6">What Happens When the Pool is Full<a
+            aria-label="jump-to-section-links"
+            class="pl-2 font-bold no-underline opacity-0 hover:underline text-primary group-hover:opacity-100"
+            href="#what-happens-when-the-pool-is-full">#</a></h3>
+    <p>When all 200 threads are occupied with in-progress requests, new incoming requests do not get rejected
+        immediately. They are placed in a TCP accept queue (bounded by <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">accept-count</code>). If that queue also
+        fills up, the server stops accepting new TCP connections, and clients will see a connection timeout or
+        connection refused error.</p>
+    <p>This is the first hard throughput ceiling your application has.</p>
+    <hr>
+    <h2 id="memory-usage-of-request-threads" class="relative group scroll-mt-6">Memory Usage of Request Threads<a
+            aria-label="jump-to-section-links"
+            class="pl-2 font-bold no-underline opacity-0 hover:underline text-primary group-hover:opacity-100"
+            href="#memory-usage-of-request-threads">#</a></h2>
+    <h3 id="thread-stack-size" class="relative group scroll-mt-6">Thread Stack Size<a aria-label="jump-to-section-links"
+            class="pl-2 font-bold no-underline opacity-0 hover:underline text-primary group-hover:opacity-100"
+            href="#thread-stack-size">#</a></h3>
+    <p>Each thread has a dedicated stack allocated from JVM memory. In most JVMs, the default thread stack size is 512KB
+        to 1MB. With 200 threads, that alone accounts for 100MB to 200MB of memory reserved for thread stacks,
+        independent of heap usage.</p>
+    <p>You can tune stack size with the <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">-Xss</code> JVM flag:</p>
+    <pre
+        class="border text-[#e5e7eb] border-blog-border not-prose text-base rounded-lg my-4 p-0 relative !bg-[#0F172A] dark:!bg-[#07090F] grid"><div class="absolute z-[2] top-2.5 right-3"><button aria-checked="false" class="relative group flex items-center justify-center border border-gray-600 rounded-lg w-9 h-9" fdprocessedid="mj8kke"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-copy text-gray-600 transition-all duration-300 group-hover:text-blue-500 group-aria-checked:scale-0"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check absolute transition-transform duration-300 scale-0 -translate-y-1/2 top-2/4 text-success group-aria-checked:scale-100"><path d="M20 6 9 17l-5-5"></path></svg></button></div><div dir="ltr" class="relative overflow-hidden w-full max-w-full p-4" style="position:relative;--radix-scroll-area-corner-width:0px;--radix-scroll-area-corner-height:0px"><style>[data-radix-scroll-area-viewport]{scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch;}[data-radix-scroll-area-viewport]::-webkit-scrollbar{display:none}</style><div data-radix-scroll-area-viewport="" class="h-full w-full rounded-[inherit]" style="overflow: scroll;"><div style="min-width:100%;display:table"><div class="!bg-inherit pb-0 "><div><code><span class="line"><span style="color:#ABB2BF">java </span><span style="color:#56B6C2">-</span><span style="color:#E5C07B">Xss512k</span><span style="color:#56B6C2"> -</span><span style="color:#ABB2BF">jar myapp.</span><span style="color:#61AFEF">jar</span></span>
+<span class="line"></span></code></div></div></div></div></div></pre>
+    <p>Reducing stack size allows more threads to exist within the same memory footprint, but too small a stack causes
+        <code class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">StackOverflowError</code> for deeply
+        recursive code.</p>
+    <h3 id="request-and-response-objects" class="relative group scroll-mt-6">Request and Response Objects<a
+            aria-label="jump-to-section-links"
+            class="pl-2 font-bold no-underline opacity-0 hover:underline text-primary group-hover:opacity-100"
+            href="#request-and-response-objects">#</a></h3>
+    <p>Every HTTP request creates a <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">HttpServletRequest</code> object on the
+        heap. It holds the request headers, query parameters, path variables, and request body. The response object
+        (<code class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">HttpServletResponse</code>) holds the
+        response buffer. For large request bodies or file uploads, these objects can consume significant heap memory.
+    </p>
+    <p>Spring also creates objects throughout the chain: filter instances (shared, not per-request), the <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">Authentication</code> object in the
+        security context, the <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">@Transactional</code> proxy interceptor
+        call frames, repository proxies, and finally the response DTO serialized to JSON.</p>
+    <p>All of these are garbage collected after the request completes, but during the request they all live on the heap.
+        High-traffic applications can generate significant GC pressure if response objects are large or if many requests
+        are running concurrently.</p>
+    <hr>
+    <h2 id="security-processing-and-user-isolation" class="relative group scroll-mt-6">Security Processing and User
+        Isolation<a aria-label="jump-to-section-links"
+            class="pl-2 font-bold no-underline opacity-0 hover:underline text-primary group-hover:opacity-100"
+            href="#security-processing-and-user-isolation">#</a></h2>
+    <h3 id="the-filter-chain" class="relative group scroll-mt-6">The Filter Chain<a aria-label="jump-to-section-links"
+            class="pl-2 font-bold no-underline opacity-0 hover:underline text-primary group-hover:opacity-100"
+            href="#the-filter-chain">#</a></h3>
+    <p>Before a request ever reaches <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">DispatcherServlet</code>, it passes
+        through the Servlet filter chain. Spring Security registers itself as a filter in this chain, specifically
+        through <code class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">FilterChainProxy</code>. This
+        proxy delegates to a series of security filters, each with a specific responsibility.</p>
+    <p>The most important for most applications is <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">UsernamePasswordAuthenticationFilter</code>
+        or, in stateless APIs, a custom JWT authentication filter. This filter extracts the credentials or token from
+        the request, validates them, and creates an <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">Authentication</code> object.</p>
+    <h3 id="securitycontextholder-and-threadlocal-isolation" class="relative group scroll-mt-6">SecurityContextHolder
+        and ThreadLocal Isolation<a aria-label="jump-to-section-links"
+            class="pl-2 font-bold no-underline opacity-0 hover:underline text-primary group-hover:opacity-100"
+            href="#securitycontextholder-and-threadlocal-isolation">#</a></h3>
+    <p>Once authenticated, Spring Security stores the <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">Authentication</code> object in the <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">SecurityContextHolder</code>. Under the
+        hood, <code class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">SecurityContextHolder</code> uses
+        a <code class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">ThreadLocal</code> variable to store
+        the security context.</p>
+    <p>A <code class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">ThreadLocal</code> is a per-thread
+        variable. Each thread has its own independent copy. When thread-47 sets a value in a <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">ThreadLocal</code>, thread-52 cannot read
+        it. This is precisely what guarantees that user Alice's authentication on thread-47 is never visible on
+        thread-52, which is serving user Bob.</p>
+    <pre
+        class="border text-[#e5e7eb] border-blog-border not-prose text-base rounded-lg my-4 p-0 relative !bg-[#0F172A] dark:!bg-[#07090F] grid"><div class="absolute z-[2] top-2.5 right-3"><button aria-checked="false" class="relative group flex items-center justify-center border border-gray-600 rounded-lg w-9 h-9" fdprocessedid="fgia1l"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-copy text-gray-600 transition-all duration-300 group-hover:text-blue-500 group-aria-checked:scale-0"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check absolute transition-transform duration-300 scale-0 -translate-y-1/2 top-2/4 text-success group-aria-checked:scale-100"><path d="M20 6 9 17l-5-5"></path></svg></button></div><div dir="ltr" class="relative overflow-hidden w-full max-w-full p-4" style="position:relative;--radix-scroll-area-corner-width:0px;--radix-scroll-area-corner-height:0px"><style>[data-radix-scroll-area-viewport]{scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch;}[data-radix-scroll-area-viewport]::-webkit-scrollbar{display:none}</style><div data-radix-scroll-area-viewport="" class="h-full w-full rounded-[inherit]" style="overflow: scroll;"><div style="min-width:100%;display:table"><div class="!bg-inherit pb-0 "><div><code><span class="line"><span style="color:#7F848E;font-style:italic">// Spring does this on your behalf during the filter chain</span></span>
+<span class="line"><span style="color:#E5C07B">SecurityContextHolder</span><span style="color:#ABB2BF">.</span><span style="color:#61AFEF">getContext</span><span style="color:#ABB2BF">().</span><span style="color:#61AFEF">setAuthentication</span><span style="color:#ABB2BF">(authentication);</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#7F848E;font-style:italic">// Your code can then safely read the authenticated user anywhere in the same request</span></span>
+<span class="line"><span style="color:#E5C07B">Authentication</span><span style="color:#E06C75"> auth </span><span style="color:#56B6C2">=</span><span style="color:#E5C07B"> SecurityContextHolder</span><span style="color:#ABB2BF">.</span><span style="color:#61AFEF">getContext</span><span style="color:#ABB2BF">().</span><span style="color:#61AFEF">getAuthentication</span><span style="color:#ABB2BF">();</span></span>
+<span class="line"><span style="color:#E5C07B">String</span><span style="color:#E06C75"> username </span><span style="color:#56B6C2">=</span><span style="color:#E5C07B"> auth</span><span style="color:#ABB2BF">.</span><span style="color:#61AFEF">getName</span><span style="color:#ABB2BF">();</span></span>
+<span class="line"></span></code></div></div></div></div></div></pre>
+    <p>After the request completes, the <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">SecurityContextPersistenceFilter</code>
+        clears the security context from the thread before it returns to the pool. If this did not happen, the next
+        request handled by the same thread would inherit the previous user's authentication — a serious security bug.
+    </p>
+    <p>[Image Placeholder: Spring Security filter chain showing ThreadLocal security context isolation per request
+        thread] Image Generation Prompt: "clean minimal technical diagram showing Spring Security filter chain with
+        ThreadLocal security context isolation, two parallel request threads each having their own security context with
+        different authenticated users, educational software architecture diagram, white background"</p>
+    <h3 id="async-and-reactive-exceptions" class="relative group scroll-mt-6">Async and Reactive Exceptions<a
+            aria-label="jump-to-section-links"
+            class="pl-2 font-bold no-underline opacity-0 hover:underline text-primary group-hover:opacity-100"
+            href="#async-and-reactive-exceptions">#</a></h3>
+    <p>In asynchronous processing, the thread changes. When a task is submitted to a thread pool via <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">@Async</code> or <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">CompletableFuture.supplyAsync()</code>,
+        the new thread has no security context. <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">SecurityContextHolder.getContext().getAuthentication()</code>
+        returns null.</p>
+    <p>To propagate the security context across threads, wrap your runnable:</p>
+    <pre
+        class="border text-[#e5e7eb] border-blog-border not-prose text-base rounded-lg my-4 p-0 relative !bg-[#0F172A] dark:!bg-[#07090F] grid"><div class="absolute z-[2] top-2.5 right-3"><button aria-checked="false" class="relative group flex items-center justify-center border border-gray-600 rounded-lg w-9 h-9" fdprocessedid="5kezgt"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-copy text-gray-600 transition-all duration-300 group-hover:text-blue-500 group-aria-checked:scale-0"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check absolute transition-transform duration-300 scale-0 -translate-y-1/2 top-2/4 text-success group-aria-checked:scale-100"><path d="M20 6 9 17l-5-5"></path></svg></button></div><div dir="ltr" class="relative overflow-hidden w-full max-w-full p-4" style="position:relative;--radix-scroll-area-corner-width:0px;--radix-scroll-area-corner-height:0px"><style>[data-radix-scroll-area-viewport]{scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch;}[data-radix-scroll-area-viewport]::-webkit-scrollbar{display:none}</style><div data-radix-scroll-area-viewport="" class="h-full w-full rounded-[inherit]" style="overflow: scroll;"><div style="min-width:100%;display:table"><div class="!bg-inherit pb-0 "><div><code><span class="line"><span style="color:#7F848E;font-style:italic">// Manually propagate security context to async thread</span></span>
+<span class="line"><span style="color:#E5C07B">SecurityContext</span><span style="color:#E06C75"> context </span><span style="color:#56B6C2">=</span><span style="color:#E5C07B"> SecurityContextHolder</span><span style="color:#ABB2BF">.</span><span style="color:#61AFEF">getContext</span><span style="color:#ABB2BF">();</span></span>
+<span class="line"><span style="color:#E5C07B">executor</span><span style="color:#ABB2BF">.</span><span style="color:#61AFEF">submit</span><span style="color:#ABB2BF">(</span><span style="color:#C678DD">new</span><span style="color:#61AFEF"> DelegatingSecurityContextRunnable</span><span style="color:#ABB2BF">(() </span><span style="color:#C678DD">-&gt;</span><span style="color:#ABB2BF"> {</span></span>
+<span class="line"><span style="color:#7F848E;font-style:italic">    // SecurityContext is now available here</span></span>
+<span class="line"><span style="color:#E5C07B">    String</span><span style="color:#E06C75"> user</span><span style="color:#56B6C2"> =</span><span style="color:#E5C07B"> SecurityContextHolder</span><span style="color:#ABB2BF">.</span><span style="color:#61AFEF">getContext</span><span style="color:#ABB2BF">().</span><span style="color:#61AFEF">getAuthentication</span><span style="color:#ABB2BF">().</span><span style="color:#61AFEF">getName</span><span style="color:#ABB2BF">();</span></span>
+<span class="line"><span style="color:#ABB2BF">}, context));</span></span>
+<span class="line"></span></code></div></div></div></div></div></pre>
+    <p>In Spring WebFlux (reactive), there is no thread-local model at all. Use <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">ReactiveSecurityContextHolder</code>:</p>
+    <pre
+        class="border text-[#e5e7eb] border-blog-border not-prose text-base rounded-lg my-4 p-0 relative !bg-[#0F172A] dark:!bg-[#07090F] grid"><div class="absolute z-[2] top-2.5 right-3"><button aria-checked="false" class="relative group flex items-center justify-center border border-gray-600 rounded-lg w-9 h-9" fdprocessedid="75qdo7"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-copy text-gray-600 transition-all duration-300 group-hover:text-blue-500 group-aria-checked:scale-0"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check absolute transition-transform duration-300 scale-0 -translate-y-1/2 top-2/4 text-success group-aria-checked:scale-100"><path d="M20 6 9 17l-5-5"></path></svg></button></div><div dir="ltr" class="relative overflow-hidden w-full max-w-full p-4" style="position:relative;--radix-scroll-area-corner-width:0px;--radix-scroll-area-corner-height:0px"><style>[data-radix-scroll-area-viewport]{scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch;}[data-radix-scroll-area-viewport]::-webkit-scrollbar{display:none}</style><div data-radix-scroll-area-viewport="" class="h-full w-full rounded-[inherit]" style="overflow: scroll;"><div style="min-width:100%;display:table"><div class="!bg-inherit pb-0 "><div><code><span class="line"><span style="color:#C678DD">return</span><span style="color:#E5C07B"> ReactiveSecurityContextHolder</span><span style="color:#ABB2BF">.</span><span style="color:#61AFEF">getContext</span><span style="color:#ABB2BF">()</span></span>
+<span class="line"><span style="color:#ABB2BF">    .</span><span style="color:#61AFEF">map</span><span style="color:#ABB2BF">(ctx </span><span style="color:#C678DD">-&gt;</span><span style="color:#E5C07B"> ctx</span><span style="color:#ABB2BF">.</span><span style="color:#61AFEF">getAuthentication</span><span style="color:#ABB2BF">().</span><span style="color:#61AFEF">getName</span><span style="color:#ABB2BF">())</span></span>
+<span class="line"><span style="color:#ABB2BF">    .</span><span style="color:#61AFEF">flatMap</span><span style="color:#ABB2BF">(username </span><span style="color:#C678DD">-&gt;</span><span style="color:#E5C07B"> userService</span><span style="color:#ABB2BF">.</span><span style="color:#61AFEF">findByUsername</span><span style="color:#ABB2BF">(username));</span></span>
+<span class="line"></span></code></div></div></div></div></div></pre>
+    <hr>
+    <h2 id="request-routing-inside-spring-mvc" class="relative group scroll-mt-6">Request Routing Inside Spring MVC<a
+            aria-label="jump-to-section-links"
+            class="pl-2 font-bold no-underline opacity-0 hover:underline text-primary group-hover:opacity-100"
+            href="#request-routing-inside-spring-mvc">#</a></h2>
+    <h3 id="dispatcherservlet" class="relative group scroll-mt-6">DispatcherServlet<a aria-label="jump-to-section-links"
+            class="pl-2 font-bold no-underline opacity-0 hover:underline text-primary group-hover:opacity-100"
+            href="#dispatcherservlet">#</a></h3>
+    <p>After the filter chain completes, the request reaches <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">DispatcherServlet</code>. This is the
+        central front controller in Spring MVC. There is one <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">DispatcherServlet</code> per application
+        context, and every request passes through it.</p>
+    <p><code class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">DispatcherServlet</code> does not contain
+        any business logic. Its job is routing. It consults a list of <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">HandlerMapping</code> implementations to
+        find which controller method should handle this specific request.</p>
+    <h3 id="handler-mappings" class="relative group scroll-mt-6">Handler Mappings<a aria-label="jump-to-section-links"
+            class="pl-2 font-bold no-underline opacity-0 hover:underline text-primary group-hover:opacity-100"
+            href="#handler-mappings">#</a></h3>
+    <p>The primary handler mapping for annotation-based controllers is <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">RequestMappingHandlerMapping</code>.
+        During application startup, it scans all beans annotated with <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">@Controller</code> or <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">@RestController</code> and builds a map of
+        URL patterns to method references.</p>
+    <p>When a request for <code class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">GET /orders/101</code>
+        arrives, <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">RequestMappingHandlerMapping</code> looks
+        up this URL and HTTP method combination, finds the matching <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">@GetMapping("/orders/{id}")</code> method,
+        and returns a <code class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">HandlerMethod</code>
+        object wrapping that method reference.</p>
+    <p><code class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">DispatcherServlet</code> then finds the
+        appropriate <code class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">HandlerAdapter</code>
+        (usually <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">RequestMappingHandlerAdapter</code>) and
+        invokes the method. The adapter handles argument resolution (reading <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">@PathVariable</code>, <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">@RequestBody</code>, <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">@RequestParam</code>) and return value
+        handling (writing the response).</p>
+    <pre
+        class="border text-[#e5e7eb] border-blog-border not-prose text-base rounded-lg my-4 p-0 relative !bg-[#0F172A] dark:!bg-[#07090F] grid"><div class="absolute z-[2] top-2.5 right-3"><button aria-checked="false" class="relative group flex items-center justify-center border border-gray-600 rounded-lg w-9 h-9" fdprocessedid="35n46g"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-copy text-gray-600 transition-all duration-300 group-hover:text-blue-500 group-aria-checked:scale-0"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check absolute transition-transform duration-300 scale-0 -translate-y-1/2 top-2/4 text-success group-aria-checked:scale-100"><path d="M20 6 9 17l-5-5"></path></svg></button></div><div dir="ltr" class="relative overflow-hidden w-full max-w-full p-4" style="position:relative;--radix-scroll-area-corner-width:0px;--radix-scroll-area-corner-height:0px"><style>[data-radix-scroll-area-viewport]{scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch;}[data-radix-scroll-area-viewport]::-webkit-scrollbar{display:none}</style><div data-radix-scroll-area-viewport="" class="h-full w-full rounded-[inherit]" style="overflow: scroll;"><div style="min-width:100%;display:table"><div class="!bg-inherit pb-0 "><div><code><span class="line"><span style="color:#ABB2BF">@</span><span style="color:#E5C07B">RestController</span></span>
+<span class="line"><span style="color:#ABB2BF">@</span><span style="color:#E5C07B">RequestMapping</span><span style="color:#E06C75">(</span><span style="color:#98C379">"/orders"</span><span style="color:#E06C75">)</span></span>
+<span class="line"><span style="color:#C678DD">public</span><span style="color:#C678DD"> class</span><span style="color:#E5C07B"> OrderController</span><span style="color:#ABB2BF"> {</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#ABB2BF">    @</span><span style="color:#E5C07B">GetMapping</span><span style="color:#E06C75">(</span><span style="color:#98C379">"/{id}"</span><span style="color:#E06C75">)</span></span>
+<span class="line"><span style="color:#C678DD">    public</span><span style="color:#E5C07B"> Order</span><span style="color:#61AFEF"> getOrder</span><span style="color:#ABB2BF">(@</span><span style="color:#E5C07B">PathVariable</span><span style="color:#E5C07B"> Long</span><span style="color:#E06C75;font-style:italic"> id</span><span style="color:#ABB2BF">)</span><span style="color:#ABB2BF"> {</span></span>
+<span class="line"><span style="color:#7F848E;font-style:italic">        // DispatcherServlet resolved this method via RequestMappingHandlerMapping</span></span>
+<span class="line"><span style="color:#7F848E;font-style:italic">        // RequestMappingHandlerAdapter resolved @PathVariable from the URL</span></span>
+<span class="line"><span style="color:#C678DD">        return</span><span style="color:#E5C07B"> orderService</span><span style="color:#ABB2BF">.</span><span style="color:#61AFEF">findById</span><span style="color:#ABB2BF">(id);</span></span>
+<span class="line"><span style="color:#ABB2BF">    }</span></span>
+<span class="line"><span style="color:#ABB2BF">}</span></span>
+<span class="line"></span></code></div></div></div></div></div></pre>
+    <hr>
+    <h2 id="application-layer-execution" class="relative group scroll-mt-6">Application Layer Execution<a
+            aria-label="jump-to-section-links"
+            class="pl-2 font-bold no-underline opacity-0 hover:underline text-primary group-hover:opacity-100"
+            href="#application-layer-execution">#</a></h2>
+    <h3 id="the-layered-architecture" class="relative group scroll-mt-6">The Layered Architecture<a
+            aria-label="jump-to-section-links"
+            class="pl-2 font-bold no-underline opacity-0 hover:underline text-primary group-hover:opacity-100"
+            href="#the-layered-architecture">#</a></h3>
+    <p>Spring Boot applications typically follow a three-layer architecture: controller, service, and repository. This
+        is not a framework requirement but a widely adopted convention that separates HTTP concerns from business logic
+        from data access.</p>
+    <p>The controller receives the HTTP request and translates it into method calls. It should contain no business
+        logic. The service layer contains the domain logic. The repository layer handles database interaction, typically
+        through Spring Data JPA.</p>
+    <h3 id="how-the-call-flows-through-the-layers" class="relative group scroll-mt-6">How the Call Flows Through the
+        Layers<a aria-label="jump-to-section-links"
+            class="pl-2 font-bold no-underline opacity-0 hover:underline text-primary group-hover:opacity-100"
+            href="#how-the-call-flows-through-the-layers">#</a></h3>
+    <p>From the developer's perspective, this is a straightforward method call chain. But Spring wraps each layer with
+        proxy objects that add behavior transparently.</p>
+    <p>When your controller calls <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">orderService.findById(id)</code>, it is
+        not calling your <code class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">OrderServiceImpl</code>
+        directly. It is calling a Spring-generated proxy. That proxy checks whether any AOP advice applies to this
+        method — including <code class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">@Transactional</code>
+        transaction management, caching interceptors, security authorization checks, and any custom aspects you may have
+        defined.</p>
+    <pre
+        class="border text-[#e5e7eb] border-blog-border not-prose text-base rounded-lg my-4 p-0 relative !bg-[#0F172A] dark:!bg-[#07090F] grid"><div class="absolute z-[2] top-2.5 right-3"><button aria-checked="false" class="relative group flex items-center justify-center border border-gray-600 rounded-lg w-9 h-9" fdprocessedid="8qeaec"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-copy text-gray-600 transition-all duration-300 group-hover:text-blue-500 group-aria-checked:scale-0"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check absolute transition-transform duration-300 scale-0 -translate-y-1/2 top-2/4 text-success group-aria-checked:scale-100"><path d="M20 6 9 17l-5-5"></path></svg></button></div><div dir="ltr" class="relative overflow-hidden w-full max-w-full p-4" style="position:relative;--radix-scroll-area-corner-width:0px;--radix-scroll-area-corner-height:0px"><style>[data-radix-scroll-area-viewport]{scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch;}[data-radix-scroll-area-viewport]::-webkit-scrollbar{display:none}</style><div data-radix-scroll-area-viewport="" class="h-full w-full rounded-[inherit]" style="overflow: scroll;"><div style="min-width:100%;display:table"><div class="!bg-inherit pb-0 "><div><code><span class="line"><span style="color:#ABB2BF">@</span><span style="color:#E5C07B">Service</span></span>
+<span class="line"><span style="color:#C678DD">public</span><span style="color:#C678DD"> class</span><span style="color:#E5C07B"> OrderServiceImpl</span><span style="color:#C678DD"> implements</span><span style="color:#E5C07B"> OrderService</span><span style="color:#ABB2BF"> {</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#ABB2BF">    @</span><span style="color:#E5C07B">Autowired</span></span>
+<span class="line"><span style="color:#C678DD">    private</span><span style="color:#E5C07B"> OrderRepository</span><span style="color:#E06C75"> orderRepository</span><span style="color:#ABB2BF">;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#ABB2BF">    @</span><span style="color:#E5C07B">Transactional</span><span style="color:#E06C75">(</span><span style="color:#D19A66">readOnly</span><span style="color:#56B6C2"> =</span><span style="color:#D19A66"> true</span><span style="color:#E06C75">)</span></span>
+<span class="line"><span style="color:#C678DD">    public</span><span style="color:#E5C07B"> Order</span><span style="color:#61AFEF"> findById</span><span style="color:#ABB2BF">(</span><span style="color:#E5C07B">Long</span><span style="color:#E06C75;font-style:italic"> id</span><span style="color:#ABB2BF">)</span><span style="color:#ABB2BF"> {</span></span>
+<span class="line"><span style="color:#7F848E;font-style:italic">        // The proxy opens a transaction before this line executes</span></span>
+<span class="line"><span style="color:#C678DD">        return</span><span style="color:#E5C07B"> orderRepository</span><span style="color:#ABB2BF">.</span><span style="color:#61AFEF">findById</span><span style="color:#ABB2BF">(id)</span></span>
+<span class="line"><span style="color:#ABB2BF">            .</span><span style="color:#61AFEF">orElseThrow</span><span style="color:#ABB2BF">(() </span><span style="color:#C678DD">-&gt;</span><span style="color:#C678DD"> new</span><span style="color:#61AFEF"> OrderNotFoundException</span><span style="color:#ABB2BF">(id));</span></span>
+<span class="line"><span style="color:#7F848E;font-style:italic">        // The proxy commits/closes the transaction after this returns</span></span>
+<span class="line"><span style="color:#ABB2BF">    }</span></span>
+<span class="line"><span style="color:#ABB2BF">}</span></span>
+<span class="line"></span></code></div></div></div></div></div></pre>
+    <p>The <code class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">OrderRepository</code> is itself a
+        JPA repository proxy that translates the <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">findById</code> call into a JPQL query,
+        manages the <code class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">EntityManager</code>, and
+        handles the result mapping. All of this happens within the same worker thread.</p>
+    <hr>
+    <h2 id="transaction-lifecycle" class="relative group scroll-mt-6">Transaction Lifecycle<a
+            aria-label="jump-to-section-links"
+            class="pl-2 font-bold no-underline opacity-0 hover:underline text-primary group-hover:opacity-100"
+            href="#transaction-lifecycle">#</a></h2>
+    <h3 id="how-transactions-begin" class="relative group scroll-mt-6">How Transactions Begin<a
+            aria-label="jump-to-section-links"
+            class="pl-2 font-bold no-underline opacity-0 hover:underline text-primary group-hover:opacity-100"
+            href="#how-transactions-begin">#</a></h3>
+    <p>When a method annotated with <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">@Transactional</code> is called through
+        its proxy, Spring's <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">TransactionInterceptor</code> runs before
+        the method body executes. It checks the transaction propagation setting (default is <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">REQUIRED</code>, meaning use an existing
+        transaction or create a new one) and, if a new transaction is needed, calls the <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">PlatformTransactionManager</code> to begin
+        one.</p>
+    <p>For JPA with HikariCP, beginning a transaction means: obtain a database connection from the connection pool, set
+        <code class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">autoCommit=false</code> on that
+        connection, and bind both the connection and the transaction status to the current thread using <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">TransactionSynchronizationManager</code>.
+    </p>
+    <pre
+        class="border text-[#e5e7eb] border-blog-border not-prose text-base rounded-lg my-4 p-0 relative !bg-[#0F172A] dark:!bg-[#07090F] grid"><div class="absolute z-[2] top-2.5 right-3"><button aria-checked="false" class="relative group flex items-center justify-center border border-gray-600 rounded-lg w-9 h-9" fdprocessedid="4p6xqj"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-copy text-gray-600 transition-all duration-300 group-hover:text-blue-500 group-aria-checked:scale-0"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check absolute transition-transform duration-300 scale-0 -translate-y-1/2 top-2/4 text-success group-aria-checked:scale-100"><path d="M20 6 9 17l-5-5"></path></svg></button></div><div dir="ltr" class="relative overflow-hidden w-full max-w-full p-4" style="position:relative;--radix-scroll-area-corner-width:0px;--radix-scroll-area-corner-height:0px"><style>[data-radix-scroll-area-viewport]{scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch;}[data-radix-scroll-area-viewport]::-webkit-scrollbar{display:none}</style><div data-radix-scroll-area-viewport="" class="h-full w-full rounded-[inherit]" style="overflow: scroll;"><div style="min-width:100%;display:table"><div class="!bg-inherit pb-0 "><div><code><span class="line"><span style="color:#7F848E;font-style:italic">// TransactionSynchronizationManager stores the connection in a ThreadLocal map</span></span>
+<span class="line"><span style="color:#7F848E;font-style:italic">// keyed by the DataSource</span></span>
+<span class="line"><span style="color:#E5C07B">resources</span><span style="color:#ABB2BF">.</span><span style="color:#61AFEF">set</span><span style="color:#ABB2BF">(dataSource, connectionHolder);</span><span style="color:#7F848E;font-style:italic"> // stored in ThreadLocal</span></span>
+<span class="line"></span></code></div></div></div></div></div></pre>
+    <p>This is the key point: the transaction is thread-bound. The database connection holding the open transaction is
+        stored in a <code class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">ThreadLocal</code>, which
+        means it is only accessible from the thread that started the transaction.</p>
+    <h3 id="commit-and-rollback" class="relative group scroll-mt-6">Commit and Rollback<a
+            aria-label="jump-to-section-links"
+            class="pl-2 font-bold no-underline opacity-0 hover:underline text-primary group-hover:opacity-100"
+            href="#commit-and-rollback">#</a></h3>
+    <p>After your method returns normally, the <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">TransactionInterceptor</code> calls <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">commit()</code> on the transaction. The
+        connection flushes any pending SQL, commits the transaction on the database, sets <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">autoCommit=true</code>, and returns the
+        connection to the pool.</p>
+    <p>If your method throws an unchecked exception (a <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">RuntimeException</code> or <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">Error</code>), the interceptor calls <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">rollback()</code> instead. The in-progress
+        transaction is rolled back on the database, and the connection is returned to the pool.</p>
+    <pre
+        class="border text-[#e5e7eb] border-blog-border not-prose text-base rounded-lg my-4 p-0 relative !bg-[#0F172A] dark:!bg-[#07090F] grid"><div class="absolute z-[2] top-2.5 right-3"><button aria-checked="false" class="relative group flex items-center justify-center border border-gray-600 rounded-lg w-9 h-9" fdprocessedid="493gt"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-copy text-gray-600 transition-all duration-300 group-hover:text-blue-500 group-aria-checked:scale-0"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check absolute transition-transform duration-300 scale-0 -translate-y-1/2 top-2/4 text-success group-aria-checked:scale-100"><path d="M20 6 9 17l-5-5"></path></svg></button></div><div dir="ltr" class="relative overflow-hidden w-full max-w-full p-4" style="position:relative;--radix-scroll-area-corner-width:0px;--radix-scroll-area-corner-height:0px"><style>[data-radix-scroll-area-viewport]{scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch;}[data-radix-scroll-area-viewport]::-webkit-scrollbar{display:none}</style><div data-radix-scroll-area-viewport="" class="h-full w-full rounded-[inherit]" style="overflow: scroll;"><div style="min-width:100%;display:table"><div class="!bg-inherit pb-0 "><div><code><span class="line"><span style="color:#ABB2BF">@</span><span style="color:#E5C07B">Transactional</span></span>
+<span class="line"><span style="color:#C678DD">public</span><span style="color:#C678DD"> void</span><span style="color:#61AFEF"> placeOrder</span><span style="color:#E06C75">(</span><span style="color:#E5C07B">OrderRequest</span><span style="color:#E06C75"> request) {</span></span>
+<span class="line"><span style="color:#E5C07B">    Order</span><span style="color:#E06C75"> order </span><span style="color:#56B6C2">=</span><span style="color:#C678DD"> new</span><span style="color:#61AFEF"> Order</span><span style="color:#E06C75">(request)</span><span style="color:#ABB2BF">;</span></span>
+<span class="line"><span style="color:#E5C07B">    orderRepository</span><span style="color:#ABB2BF">.</span><span style="color:#61AFEF">save</span><span style="color:#ABB2BF">(order);</span><span style="color:#7F848E;font-style:italic">       // INSERT executed but not yet committed</span></span>
+<span class="line"><span style="color:#E5C07B">    inventoryService</span><span style="color:#ABB2BF">.</span><span style="color:#61AFEF">deduct</span><span style="color:#ABB2BF">(request);</span><span style="color:#7F848E;font-style:italic">  // if this throws, the INSERT is rolled back</span></span>
+<span class="line"><span style="color:#7F848E;font-style:italic">    // commit happens here if no exception was thrown</span></span>
+<span class="line"><span style="color:#E06C75">}</span></span>
+<span class="line"></span></code></div></div></div></div></div></pre>
+    <h3 id="async-and-reactive-exceptions" class="relative group scroll-mt-6">Async and Reactive Exceptions<a
+            aria-label="jump-to-section-links"
+            class="pl-2 font-bold no-underline opacity-0 hover:underline text-primary group-hover:opacity-100"
+            href="#async-and-reactive-exceptions">#</a></h3>
+    <p>Transactions are bound to the current thread via <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">ThreadLocal</code>. If the thread changes
+        mid-transaction — which happens with <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">@Async</code>, <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">CompletableFuture</code>, or reactive
+        pipelines — the new thread has no transaction context. Any JPA operations on the new thread will either start a
+        new transaction or run without one, depending on propagation settings.</p>
+    <p>There is no clean way to continue a JDBC transaction across thread boundaries. The recommended pattern is to
+        complete all transactional work on a single thread, then hand off non-transactional work asynchronously.</p>
+    <p>For reactive applications, Spring provides <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">ReactiveTransactionManager</code> and
+        <code class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">@Transactional</code> support in
+        WebFlux, but this operates on a Reactor context rather than <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">ThreadLocal</code>, and requires
+        reactive-compatible database drivers (R2DBC, not JDBC).</p>
+    <hr>
+    <h2 id="database-connection-pool-usage" class="relative group scroll-mt-6">Database Connection Pool Usage<a
+            aria-label="jump-to-section-links"
+            class="pl-2 font-bold no-underline opacity-0 hover:underline text-primary group-hover:opacity-100"
+            href="#database-connection-pool-usage">#</a></h2>
+    <h3 id="how-the-pool-works" class="relative group scroll-mt-6">How the Pool Works<a
+            aria-label="jump-to-section-links"
+            class="pl-2 font-bold no-underline opacity-0 hover:underline text-primary group-hover:opacity-100"
+            href="#how-the-pool-works">#</a></h3>
+    <p>Spring Boot auto-configures HikariCP as the default connection pool. On startup, HikariCP creates a pool of
+        physical JDBC connections to your database server. By default, <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">maximumPoolSize</code> is 10.</p>
+    <p>When a transaction begins (as described above), the <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">TransactionInterceptor</code> asks
+        HikariCP for a connection. HikariCP checks if any connections are idle in the pool. If one is available, it
+        marks it as borrowed and returns it. If none are available, the calling thread waits up to <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">connectionTimeout</code> milliseconds
+        (default 30 seconds) for a connection to become free.</p>
+    <pre
+        class="border text-[#e5e7eb] border-blog-border not-prose text-base rounded-lg my-4 p-0 relative !bg-[#0F172A] dark:!bg-[#07090F] grid"><div class="absolute z-[2] top-2.5 right-3"><button aria-checked="false" class="relative group flex items-center justify-center border border-gray-600 rounded-lg w-9 h-9" fdprocessedid="g7klfg"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-copy text-gray-600 transition-all duration-300 group-hover:text-blue-500 group-aria-checked:scale-0"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check absolute transition-transform duration-300 scale-0 -translate-y-1/2 top-2/4 text-success group-aria-checked:scale-100"><path d="M20 6 9 17l-5-5"></path></svg></button></div><div dir="ltr" class="relative overflow-hidden w-full max-w-full p-4" style="position:relative;--radix-scroll-area-corner-width:0px;--radix-scroll-area-corner-height:0px"><style>[data-radix-scroll-area-viewport]{scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch;}[data-radix-scroll-area-viewport]::-webkit-scrollbar{display:none}</style><div data-radix-scroll-area-viewport="" class="h-full w-full rounded-[inherit]" style="overflow: scroll;"><div style="min-width:100%;display:table"><div class="!bg-inherit pb-0 "><div><code><span class="line"><span style="color:#ABB2BF">spring</span><span style="color:#ABB2BF">.</span><span style="color:#ABB2BF">datasource</span><span style="color:#ABB2BF">.</span><span style="color:#ABB2BF">hikari</span><span style="color:#ABB2BF">.</span><span style="color:#ABB2BF">maximum</span><span style="color:#56B6C2">-</span><span style="color:#ABB2BF">pool</span><span style="color:#56B6C2">-</span><span style="color:#ABB2BF">size</span><span style="color:#56B6C2">=</span><span style="color:#D19A66">10</span></span>
+<span class="line"><span style="color:#ABB2BF">spring</span><span style="color:#ABB2BF">.</span><span style="color:#ABB2BF">datasource</span><span style="color:#ABB2BF">.</span><span style="color:#ABB2BF">hikari</span><span style="color:#ABB2BF">.</span><span style="color:#ABB2BF">minimum</span><span style="color:#56B6C2">-</span><span style="color:#ABB2BF">idle</span><span style="color:#56B6C2">=</span><span style="color:#D19A66">5</span></span>
+<span class="line"><span style="color:#ABB2BF">spring</span><span style="color:#ABB2BF">.</span><span style="color:#ABB2BF">datasource</span><span style="color:#ABB2BF">.</span><span style="color:#ABB2BF">hikari</span><span style="color:#ABB2BF">.</span><span style="color:#ABB2BF">connection</span><span style="color:#56B6C2">-</span><span style="color:#ABB2BF">timeout</span><span style="color:#56B6C2">=</span><span style="color:#D19A66">30000</span></span>
+<span class="line"><span style="color:#ABB2BF">spring</span><span style="color:#ABB2BF">.</span><span style="color:#ABB2BF">datasource</span><span style="color:#ABB2BF">.</span><span style="color:#ABB2BF">hikari</span><span style="color:#ABB2BF">.</span><span style="color:#ABB2BF">idle</span><span style="color:#56B6C2">-</span><span style="color:#ABB2BF">timeout</span><span style="color:#56B6C2">=</span><span style="color:#D19A66">600000</span></span>
+<span class="line"></span></code></div></div></div></div></div></pre>
+    <h3 id="the-connection-is-held-for-the-transaction-duration" class="relative group scroll-mt-6">The Connection Is
+        Held for the Transaction Duration<a aria-label="jump-to-section-links"
+            class="pl-2 font-bold no-underline opacity-0 hover:underline text-primary group-hover:opacity-100"
+            href="#the-connection-is-held-for-the-transaction-duration">#</a></h3>
+    <p>A connection is held for the entire duration of the transaction. If your transaction opens at the start of a
+        service method and does not commit until the end, the connection is tied up for that entire period — including
+        any time spent doing computation, calling external services, or executing slow queries.</p>
+    <p>This is the second hard throughput ceiling: with <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">maximumPoolSize=10</code>, only 10
+        transactions can hold active database connections at any given moment. Thread 11 through 200 will be blocked
+        waiting for a connection if the first 10 threads are all in active transactions.</p>
+    <h3 id="pool-exhaustion" class="relative group scroll-mt-6">Pool Exhaustion<a aria-label="jump-to-section-links"
+            class="pl-2 font-bold no-underline opacity-0 hover:underline text-primary group-hover:opacity-100"
+            href="#pool-exhaustion">#</a></h3>
+    <p>When the connection pool is exhausted and no connection becomes free within <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">connectionTimeout</code>, HikariCP throws
+        a <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">SQLTransientConnectionException</code>.
+        This surfaces in your application as a 500 error.</p>
+    <p>The common mistake here is setting <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">maximumPoolSize</code> too high. More
+        connections do not mean more throughput; they mean more concurrency on the database, which eventually saturates
+        database CPU. The right pool size depends on your database server's capacity and your query patterns.</p>
+    <hr>
+    <h2 id="response-generation" class="relative group scroll-mt-6">Response Generation<a
+            aria-label="jump-to-section-links"
+            class="pl-2 font-bold no-underline opacity-0 hover:underline text-primary group-hover:opacity-100"
+            href="#response-generation">#</a></h2>
+    <h3 id="returning-from-the-controller" class="relative group scroll-mt-6">Returning from the Controller<a
+            aria-label="jump-to-section-links"
+            class="pl-2 font-bold no-underline opacity-0 hover:underline text-primary group-hover:opacity-100"
+            href="#returning-from-the-controller">#</a></h3>
+    <p>Once the service method returns its result, control flows back through the proxy layers (any <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">@AfterReturning</code> advice, transaction
+        commit) and eventually back to <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">DispatcherServlet</code>, which now has
+        the return value from the controller method.</p>
+    <p>For <code class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">@RestController</code> methods, the
+        return value needs to be serialized to an HTTP response body. <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">DispatcherServlet</code> hands this off to
+        a <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">HandlerMethodReturnValueHandler</code>,
+        which for <code class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">ResponseEntity</code> or plain
+        objects, delegates to an <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">HttpMessageConverter</code>.</p>
+    <h3 id="jackson-and-json-serialization" class="relative group scroll-mt-6">Jackson and JSON Serialization<a
+            aria-label="jump-to-section-links"
+            class="pl-2 font-bold no-underline opacity-0 hover:underline text-primary group-hover:opacity-100"
+            href="#jackson-and-json-serialization">#</a></h3>
+    <p>Spring Boot auto-configures Jackson's <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">MappingJackson2HttpMessageConverter</code>.
+        When the content negotiation process determines that the client expects <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">application/json</code> (typically from
+        the <code class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">Accept</code> header or by default),
+        Jackson is used to serialize the return object.</p>
+    <p>Jackson uses reflection to inspect the object's fields, calls getter methods, and writes a JSON string to the
+        <code class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">HttpServletResponse</code>'s output
+        stream.</p>
+    <pre
+        class="border text-[#e5e7eb] border-blog-border not-prose text-base rounded-lg my-4 p-0 relative !bg-[#0F172A] dark:!bg-[#07090F] grid"><div class="absolute z-[2] top-2.5 right-3"><button aria-checked="false" class="relative group flex items-center justify-center border border-gray-600 rounded-lg w-9 h-9" fdprocessedid="zzk9q"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-copy text-gray-600 transition-all duration-300 group-hover:text-blue-500 group-aria-checked:scale-0"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check absolute transition-transform duration-300 scale-0 -translate-y-1/2 top-2/4 text-success group-aria-checked:scale-100"><path d="M20 6 9 17l-5-5"></path></svg></button></div><div dir="ltr" class="relative overflow-hidden w-full max-w-full p-4" style="position:relative;--radix-scroll-area-corner-width:0px;--radix-scroll-area-corner-height:0px"><style>[data-radix-scroll-area-viewport]{scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch;}[data-radix-scroll-area-viewport]::-webkit-scrollbar{display:none}</style><div data-radix-scroll-area-viewport="" class="h-full w-full rounded-[inherit]" style="overflow: scroll;"><div style="min-width:100%;display:table"><div class="!bg-inherit pb-0 "><div><code><span class="line"><span style="color:#7F848E;font-style:italic">// Your controller returns this</span></span>
+<span class="line"><span style="color:#C678DD">return</span><span style="color:#C678DD"> new</span><span style="color:#61AFEF"> OrderResponse</span><span style="color:#E06C75">(</span><span style="color:#E5C07B">order</span><span style="color:#ABB2BF">.</span><span style="color:#61AFEF">getId</span><span style="color:#ABB2BF">(),</span><span style="color:#E5C07B"> order</span><span style="color:#ABB2BF">.</span><span style="color:#61AFEF">getStatus</span><span style="color:#ABB2BF">(),</span><span style="color:#E5C07B"> order</span><span style="color:#ABB2BF">.</span><span style="color:#61AFEF">getTotal</span><span style="color:#ABB2BF">()</span><span style="color:#E06C75">)</span><span style="color:#ABB2BF">;</span></span>
+<span class="line"></span>
+<span class="line"><span style="color:#7F848E;font-style:italic">// Jackson serializes it to:</span></span>
+<span class="line"><span style="color:#7F848E;font-style:italic">// {"id": 101, "status": "CONFIRMED", "total": 49.99}</span></span>
+<span class="line"><span style="color:#7F848E;font-style:italic">// and writes it to the response output buffer</span></span>
+<span class="line"></span></code></div></div></div></div></div></pre>
+    <p>The response is then flushed over the TCP connection back to the client, and the worker thread is released back
+        to Tomcat's thread pool.</p>
+    <hr>
+    <h2 id="system-limits-and-throughput" class="relative group scroll-mt-6">System Limits and Throughput<a
+            aria-label="jump-to-section-links"
+            class="pl-2 font-bold no-underline opacity-0 hover:underline text-primary group-hover:opacity-100"
+            href="#system-limits-and-throughput">#</a></h2>
+    <h3 id="the-three-hard-limits" class="relative group scroll-mt-6">The Three Hard Limits<a
+            aria-label="jump-to-section-links"
+            class="pl-2 font-bold no-underline opacity-0 hover:underline text-primary group-hover:opacity-100"
+            href="#the-three-hard-limits">#</a></h3>
+    <p>Every Spring Boot application operating under the thread-per-request model has three fundamental throughput
+        ceilings:</p>
+    <p>The first is the thread pool size. With a default of 200 threads, you can process at most 200 requests
+        concurrently. If each request takes 100ms on average, your theoretical maximum throughput is around 2000
+        requests per second — and in practice, it will be lower due to overhead.</p>
+    <p>The second is the database connection pool size. With a default of 10 connections, at most 10 requests can be in
+        an active transaction simultaneously. If your average transaction time is 20ms, that is 500 transactional
+        operations per second before threads start queuing for connections.</p>
+    <p>The third is the database server itself — its CPU, memory, I/O, and the complexity of your queries. The
+        connection pool is a client-side throttle that protects the database. If you bypass it by increasing pool size
+        too aggressively, you transfer the bottleneck to the database server instead.</p>
+    <pre
+        class="border text-[#e5e7eb] border-blog-border not-prose text-base rounded-lg my-4 p-0 relative !bg-[#0F172A] dark:!bg-[#07090F] grid"><div class="absolute z-[2] top-2.5 right-3"><button aria-checked="false" class="relative group flex items-center justify-center border border-gray-600 rounded-lg w-9 h-9" fdprocessedid="f5miq9"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-copy text-gray-600 transition-all duration-300 group-hover:text-blue-500 group-aria-checked:scale-0"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check absolute transition-transform duration-300 scale-0 -translate-y-1/2 top-2/4 text-success group-aria-checked:scale-100"><path d="M20 6 9 17l-5-5"></path></svg></button></div><div dir="ltr" class="relative overflow-hidden w-full max-w-full p-4" style="position:relative;--radix-scroll-area-corner-width:0px;--radix-scroll-area-corner-height:0px"><style>[data-radix-scroll-area-viewport]{scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch;}[data-radix-scroll-area-viewport]::-webkit-scrollbar{display:none}</style><div data-radix-scroll-area-viewport="" class="h-full w-full rounded-[inherit]" style="overflow: scroll;"><div style="min-width:100%;display:table"><div class="!bg-inherit pb-0 "><div><code><span class="line"><span style="color:#ABB2BF">Max concurrent requests:        server</span><span style="color:#ABB2BF">.</span><span style="color:#ABB2BF">tomcat</span><span style="color:#ABB2BF">.</span><span style="color:#ABB2BF">threads</span><span style="color:#ABB2BF">.</span><span style="color:#ABB2BF">max </span><span style="color:#56B6C2">=</span><span style="color:#D19A66"> 200</span></span>
+<span class="line"><span style="color:#ABB2BF">Max concurrent DB transactions: spring</span><span style="color:#ABB2BF">.</span><span style="color:#ABB2BF">datasource</span><span style="color:#ABB2BF">.</span><span style="color:#ABB2BF">hikari</span><span style="color:#ABB2BF">.</span><span style="color:#ABB2BF">maximum</span><span style="color:#56B6C2">-</span><span style="color:#ABB2BF">pool</span><span style="color:#56B6C2">-</span><span style="color:#ABB2BF">size </span><span style="color:#56B6C2">=</span><span style="color:#D19A66"> 10</span></span>
+<span class="line"><span style="color:#ABB2BF">Queue </span><span style="color:#C678DD">for</span><span style="color:#ABB2BF"> waiting requests:     server</span><span style="color:#ABB2BF">.</span><span style="color:#ABB2BF">tomcat</span><span style="color:#ABB2BF">.</span><span style="color:#ABB2BF">accept</span><span style="color:#56B6C2">-</span><span style="color:#ABB2BF">count </span><span style="color:#56B6C2">=</span><span style="color:#D19A66"> 100</span></span>
+<span class="line"><span style="color:#ABB2BF">Wait </span><span style="color:#C678DD">for</span><span style="color:#ABB2BF"> DB connection:         spring</span><span style="color:#ABB2BF">.</span><span style="color:#ABB2BF">datasource</span><span style="color:#ABB2BF">.</span><span style="color:#ABB2BF">hikari</span><span style="color:#ABB2BF">.</span><span style="color:#ABB2BF">connection</span><span style="color:#56B6C2">-</span><span style="color:#ABB2BF">timeout </span><span style="color:#56B6C2">=</span><span style="color:#D19A66"> 30000</span><span style="color:#ABB2BF">ms</span></span>
+<span class="line"></span></code></div></div></div></div></div></pre>
+    <h3 id="throughput-formula" class="relative group scroll-mt-6">Throughput Formula<a
+            aria-label="jump-to-section-links"
+            class="pl-2 font-bold no-underline opacity-0 hover:underline text-primary group-hover:opacity-100"
+            href="#throughput-formula">#</a></h3>
+    <p>Effective throughput depends on request latency. If average request duration is <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">L</code> milliseconds and you have <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">T</code> threads, your maximum throughput
+        is approximately <code class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">T / L * 1000</code>
+        requests per second.</p>
+    <p>A 50ms average request latency with 200 threads gives roughly 4000 req/sec theoretical maximum — but that only
+        holds if no other bottleneck intervenes, which in practice, the database connection pool usually does first.</p>
+    <hr>
+    <h2 id="bottlenecks-and-failure-scenarios" class="relative group scroll-mt-6">Bottlenecks and Failure Scenarios<a
+            aria-label="jump-to-section-links"
+            class="pl-2 font-bold no-underline opacity-0 hover:underline text-primary group-hover:opacity-100"
+            href="#bottlenecks-and-failure-scenarios">#</a></h2>
+    <h3 id="thread-exhaustion" class="relative group scroll-mt-6">Thread Exhaustion<a aria-label="jump-to-section-links"
+            class="pl-2 font-bold no-underline opacity-0 hover:underline text-primary group-hover:opacity-100"
+            href="#thread-exhaustion">#</a></h3>
+    <p>Thread exhaustion occurs when all 200 worker threads are occupied and the TCP accept queue is also full. New
+        clients receive connection refused errors. Existing requests in the accept queue receive connection timeout
+        errors after waiting.</p>
+    <p>The most common cause is not raw traffic volume — it is slow requests. If your application normally handles
+        requests in 50ms but a downstream service starts responding in 5 seconds, threads start piling up. With 200
+        threads and a 5-second average duration, the system saturates at just 40 requests per second instead of 4000.
+    </p>
+    <p>Symptoms include rising response time metrics, thread pool exhaustion alerts, and eventually connection refused
+        errors from the load balancer.</p>
+    <p>The solution is a combination of: timeouts on external calls, circuit breakers, and either horizontal scaling or
+        moving to a reactive model for I/O-heavy workloads.</p>
+    <h3 id="connection-pool-exhaustion" class="relative group scroll-mt-6">Connection Pool Exhaustion<a
+            aria-label="jump-to-section-links"
+            class="pl-2 font-bold no-underline opacity-0 hover:underline text-primary group-hover:opacity-100"
+            href="#connection-pool-exhaustion">#</a></h3>
+    <p>Connection pool exhaustion happens when all 10 (or however many you configured) database connections are held and
+        no new one becomes available within <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">connectionTimeout</code>. Threads that
+        need a connection block, which accelerates thread exhaustion.</p>
+    <p>The common triggers are: slow database queries holding connections longer than usual, unexpectedly high traffic,
+        a transaction that holds a connection open across a remote API call (a very common mistake), or a connection
+        leak where connections are borrowed but never returned.</p>
+    <pre
+        class="border text-[#e5e7eb] border-blog-border not-prose text-base rounded-lg my-4 p-0 relative !bg-[#0F172A] dark:!bg-[#07090F] grid"><div class="absolute z-[2] top-2.5 right-3"><button aria-checked="false" class="relative group flex items-center justify-center border border-gray-600 rounded-lg w-9 h-9" fdprocessedid="s90m6d"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-copy text-gray-600 transition-all duration-300 group-hover:text-blue-500 group-aria-checked:scale-0"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check absolute transition-transform duration-300 scale-0 -translate-y-1/2 top-2/4 text-success group-aria-checked:scale-100"><path d="M20 6 9 17l-5-5"></path></svg></button></div><div dir="ltr" class="relative overflow-hidden w-full max-w-full p-4" style="position:relative;--radix-scroll-area-corner-width:0px;--radix-scroll-area-corner-height:0px"><style>[data-radix-scroll-area-viewport]{scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch;}[data-radix-scroll-area-viewport]::-webkit-scrollbar{display:none}</style><div data-radix-scroll-area-viewport="" class="h-full w-full rounded-[inherit]" style="overflow: scroll;"><div style="min-width:100%;display:table"><div class="!bg-inherit pb-0 "><div><code><span class="line"><span style="color:#7F848E;font-style:italic">// Common mistake: transaction spans an external HTTP call</span></span>
+<span class="line"><span style="color:#ABB2BF">@</span><span style="color:#E5C07B">Transactional</span></span>
+<span class="line"><span style="color:#C678DD">public</span><span style="color:#E5C07B"> OrderConfirmation</span><span style="color:#61AFEF"> checkout</span><span style="color:#E06C75">(</span><span style="color:#E5C07B">CartRequest</span><span style="color:#E06C75"> cart) {</span></span>
+<span class="line"><span style="color:#E5C07B">    Order</span><span style="color:#E06C75"> order </span><span style="color:#56B6C2">=</span><span style="color:#E5C07B"> orderRepository</span><span style="color:#ABB2BF">.</span><span style="color:#61AFEF">save</span><span style="color:#ABB2BF">(</span><span style="color:#C678DD">new</span><span style="color:#61AFEF"> Order</span><span style="color:#ABB2BF">(cart));</span><span style="color:#7F848E;font-style:italic">     // borrows connection</span></span>
+<span class="line"><span style="color:#E06C75">    paymentResult </span><span style="color:#56B6C2">=</span><span style="color:#E5C07B"> paymentGateway</span><span style="color:#ABB2BF">.</span><span style="color:#61AFEF">charge</span><span style="color:#ABB2BF">(</span><span style="color:#E5C07B">cart</span><span style="color:#ABB2BF">.</span><span style="color:#61AFEF">getPayment</span><span style="color:#ABB2BF">());</span><span style="color:#7F848E;font-style:italic"> // holds connection for 2-3 seconds</span></span>
+<span class="line"><span style="color:#E5C07B">    order</span><span style="color:#ABB2BF">.</span><span style="color:#61AFEF">setStatus</span><span style="color:#ABB2BF">(</span><span style="color:#E5C07B">paymentResult</span><span style="color:#ABB2BF">.</span><span style="color:#61AFEF">getStatus</span><span style="color:#ABB2BF">());</span></span>
+<span class="line"><span style="color:#C678DD">    return</span><span style="color:#E5C07B"> orderRepository</span><span style="color:#ABB2BF">.</span><span style="color:#61AFEF">save</span><span style="color:#ABB2BF">(order);</span><span style="color:#7F848E;font-style:italic">                      // releases connection after this</span></span>
+<span class="line"><span style="color:#E06C75">}</span></span>
+<span class="line"></span></code></div></div></div></div></div></pre>
+    <p>The fix is to restructure so that the remote call happens outside the transaction, and the transaction only wraps
+        the actual database operations.</p>
+    <h3 id="request-timeouts" class="relative group scroll-mt-6">Request Timeouts<a aria-label="jump-to-section-links"
+            class="pl-2 font-bold no-underline opacity-0 hover:underline text-primary group-hover:opacity-100"
+            href="#request-timeouts">#</a></h3>
+    <p>If Tomcat has no explicit request timeout configured and a slow request holds a thread for minutes, it simply
+        occupies that thread for the full duration. You can set a read timeout:</p>
+    <pre
+        class="border text-[#e5e7eb] border-blog-border not-prose text-base rounded-lg my-4 p-0 relative !bg-[#0F172A] dark:!bg-[#07090F] grid"><div class="absolute z-[2] top-2.5 right-3"><button aria-checked="false" class="relative group flex items-center justify-center border border-gray-600 rounded-lg w-9 h-9" fdprocessedid="lp6jnd"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-copy text-gray-600 transition-all duration-300 group-hover:text-blue-500 group-aria-checked:scale-0"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-check absolute transition-transform duration-300 scale-0 -translate-y-1/2 top-2/4 text-success group-aria-checked:scale-100"><path d="M20 6 9 17l-5-5"></path></svg></button></div><div dir="ltr" class="relative overflow-hidden w-full max-w-full p-4" style="position:relative;--radix-scroll-area-corner-width:0px;--radix-scroll-area-corner-height:0px"><style>[data-radix-scroll-area-viewport]{scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch;}[data-radix-scroll-area-viewport]::-webkit-scrollbar{display:none}</style><div data-radix-scroll-area-viewport="" class="h-full w-full rounded-[inherit]" style="overflow: scroll;"><div style="min-width:100%;display:table"><div class="!bg-inherit pb-0 "><div><code><span class="line"><span style="color:#ABB2BF">server</span><span style="color:#ABB2BF">.</span><span style="color:#ABB2BF">tomcat</span><span style="color:#ABB2BF">.</span><span style="color:#ABB2BF">connection</span><span style="color:#56B6C2">-</span><span style="color:#ABB2BF">timeout</span><span style="color:#56B6C2">=</span><span style="color:#D19A66">20000</span></span>
+<span class="line"></span></code></div></div></div></div></div></pre>
+    <p>At the application level, setting timeouts on <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">RestTemplate</code>, <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">WebClient</code>, and database query
+        execution limits prevents single slow operations from consuming thread resources indefinitely.</p>
+    <figure class="image"><!--$--><!--$--><!--/$--><!--/$--><img
+            src="https://cs-prod-assets-bucket.s3.ap-south-1.amazonaws.com/Spring_Boot_bottleneck_65946fc375.webp"
+            alt="SpringBoot bottleneck" class="mx-auto cursor-zoom-in max-sm:w-screen max-sm:pointer-events-none">
+        <figcaption>SpringBoot bottleneck</figcaption>
+    </figure>
+    <hr>
+    <h2 id="final-visualization--complete-request-lifecycle" class="relative group scroll-mt-6">Final Visualization —
+        Complete Request Lifecycle<a aria-label="jump-to-section-links"
+            class="pl-2 font-bold no-underline opacity-0 hover:underline text-primary group-hover:opacity-100"
+            href="#final-visualization--complete-request-lifecycle">#</a></h2>
+    <p>The diagram below ties together every stage described in this article. Following the full path of a single
+        request reveals how each component depends on the one before it, and why bottlenecks in one layer cascade into
+        failures across the rest.</p>
+    <figure class="image"><!--$--><!--$--><!--/$--><!--/$--><img
+            src="https://cs-prod-assets-bucket.s3.ap-south-1.amazonaws.com/Complete_end_to_end_Spring_Boot_request_lifecycle_fa163cddc7.webp"
+            alt="Complete end-to-end SpringBoot request lifecycle"
+            class="mx-auto cursor-zoom-in max-sm:w-screen max-sm:pointer-events-none">
+        <figcaption>Complete end-to-end SpringBoot request lifecycle</figcaption>
+    </figure>
+    <p>The sequence for a single request, fully detailed:</p>
+    <p><strong>Step 1 — TCP Acceptance.</strong> The client opens a TCP connection. Tomcat's acceptor thread receives it
+        and places it in the worker queue.</p>
+    <p><strong>Step 2 — Thread Assignment.</strong> A worker thread from the thread pool picks up the request. This
+        thread will carry the request from this point until the response is written.</p>
+    <p><strong>Step 3 — Filter Chain.</strong> The request traverses the filter chain. Spring Security filters extract
+        the JWT or session token, validate it, create an <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">Authentication</code> object, and store it
+        in the <code class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">SecurityContextHolder</code>
+        <code class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">ThreadLocal</code> on this thread.</p>
+    <p><strong>Step 4 — DispatcherServlet Routing.</strong> <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">DispatcherServlet</code> consults <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">RequestMappingHandlerMapping</code>, finds
+        the target controller method, and invokes it via <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">RequestMappingHandlerAdapter</code>.</p>
+    <p><strong>Step 5 — Controller Proxy.</strong> The controller calls the service through a Spring AOP proxy. The
+        proxy evaluates any applicable aspects before delegating to the actual service method.</p>
+    <p><strong>Step 6 — Transaction Begins.</strong> The <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">@Transactional</code> proxy intercepts the
+        service method call. <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">TransactionInterceptor</code> asks
+        HikariCP for a connection. HikariCP lends one from the pool. The connection is bound to the current thread via
+        <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">TransactionSynchronizationManager</code>.
+    </p>
+    <p><strong>Step 7 — Repository and Query Execution.</strong> The repository proxy translates the method call into
+        SQL via JPA/Hibernate. The SQL is executed on the borrowed connection. Results are mapped to entity objects.</p>
+    <p><strong>Step 8 — Transaction Commits.</strong> Control returns to the <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">@Transactional</code> proxy. No exception
+        was thrown, so the transaction is committed. The connection is returned to HikariCP's pool.</p>
+    <p><strong>Step 9 — Response Serialization.</strong> The controller returns a response object. Jackson serializes it
+        to JSON and writes it to the <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">HttpServletResponse</code> output buffer.
+    </p>
+    <p><strong>Step 10 — Security Context Cleared.</strong> Spring Security's <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">SecurityContextPersistenceFilter</code>
+        clears the <code class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">ThreadLocal</code> context,
+        ensuring no user data leaks to the next request.</p>
+    <p><strong>Step 11 — Thread Released.</strong> The response is flushed over TCP. The worker thread is returned to
+        Tomcat's thread pool, ready for the next request.</p>
+    <hr>
+    <h2 id="conclusion" class="relative group scroll-mt-6">Conclusion<a aria-label="jump-to-section-links"
+            class="pl-2 font-bold no-underline opacity-0 hover:underline text-primary group-hover:opacity-100"
+            href="#conclusion">#</a></h2>
+    <p>Understanding the internal lifecycle of a Spring Boot request is not just academic—it provides a mental model
+        that helps you reason about performance, debug production issues, and make confident architectural decisions.
+    </p>
+    <p>The thread-per-request model in Spring MVC ensures that every layer of your application executes on the same OS
+        thread. This thread carries all state: security context, transaction bindings, and borrowed database
+        connections. Any break in that continuity—through async execution, reactive pipelines, or additional thread
+        pools—requires explicit management of this state.</p>
+    <p>Your application's throughput ceiling isn’t determined by your code alone. It’s defined by three key numbers:
+        <code class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">threads.max</code>, <code
+            class="bg-gray-200 dark:bg-gray-700 rounded-sm p-[2px] break-all">maximum-pool-size</code>, and average
+        request latency. Measure these under realistic load and tune them for your actual workload instead of relying on
+        defaults.</p>
+    <p>When traffic spikes, failures follow a predictable cascade: slow requests fill threads, threads waiting for
+        connections queue up, the connection pool exhausts, and clients see 500 errors. Understanding this pattern
+        allows you to detect issues early and respond before a full outage occurs.</p>
+   
+</div>
